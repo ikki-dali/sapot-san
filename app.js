@@ -512,8 +512,26 @@ app.event('app_mention', async ({ event, client }) => {
 // ===============================
 // 6-2. 全メッセージ監視（メンション検知 + スレッド返信検知）
 // ===============================
+
+// レート制限対策: 処理中のメッセージを追跡
+const processingMessages = new Set();
+
 app.event('message', async ({ event, client }) => {
   try {
+    // 重複処理を防ぐ（同じメッセージが複数回来る場合がある）
+    const messageKey = `${event.channel}_${event.ts}`;
+    if (processingMessages.has(messageKey)) {
+      console.log('⏭️  既に処理中のメッセージをスキップ:', messageKey);
+      return;
+    }
+
+    processingMessages.add(messageKey);
+
+    // 5秒後に処理完了フラグをクリア
+    setTimeout(() => {
+      processingMessages.delete(messageKey);
+    }, 5000);
+
     // デバッグログ：すべてのメッセージを記録
     console.log('📨 メッセージ受信:', {
       text: event.text?.substring(0, 50),
