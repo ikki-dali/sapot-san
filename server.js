@@ -7,6 +7,7 @@ const logger = require('./src/utils/logger');
 const taskRoutes = require('./src/api/routes/taskRoutes');
 const statsRoutes = require('./src/api/routes/statsRoutes');
 const calendarRoutes = require('./src/api/routes/calendarRoutes');
+const unrepliedRoutes = require('./src/api/routes/unrepliedRoutes');
 
 const app = express();
 const PORT = process.env.API_PORT || 3000;
@@ -41,6 +42,7 @@ app.get('/health', (req, res) => {
 app.use('/api/tasks', taskRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/unreplied', unrepliedRoutes);
 
 // API情報エンドポイント
 app.get('/api', (req, res) => {
@@ -52,7 +54,8 @@ app.get('/api', (req, res) => {
       health: '/health',
       tasks: '/api/tasks',
       stats: '/api/stats',
-      calendar: '/api/calendar'
+      calendar: '/api/calendar',
+      unreplied: '/api/unreplied'
     }
   });
 });

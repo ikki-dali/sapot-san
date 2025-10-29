@@ -73,10 +73,10 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card stat-card text-white bg-info">
+                <div class="card stat-card text-white bg-danger">
                     <div class="card-body">
-                        <h5 class="card-title"><i class="bi bi-bar-chart"></i> 合計</h5>
-                        <h2 id="totalTasks">-</h2>
+                        <h5 class="card-title"><i class="bi bi-chat-dots"></i> 未返信</h5>
+                        <h2 id="unrepliedMentions">-</h2>
                     </div>
                 </div>
             </div>
@@ -105,6 +105,27 @@
                     <div class="card-body text-center">
                         <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> 低優先度</h6>
                         <h3 id="lowPriority">-</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 未返信メンション一覧 -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-chat-dots-fill text-danger"></i> 未返信メンション一覧</h5>
+                    <button class="btn btn-sm btn-danger" onclick="loadUnrepliedMentions()">
+                        <i class="bi bi-arrow-clockwise"></i> 更新
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="unrepliedList">
+                    <div class="text-center text-muted">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -153,12 +174,12 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    const { tasks, priority } = result.data;
+                    const { tasks, priority, unreplied } = result.data;
 
                     document.getElementById('openTasks').textContent = tasks.open;
                     document.getElementById('completedTasks').textContent = tasks.completed;
                     document.getElementById('upcomingTasks').textContent = tasks.upcoming;
-                    document.getElementById('totalTasks').textContent = tasks.total;
+                    document.getElementById('unrepliedMentions').textContent = unreplied ? unreplied.unreplied : 0;
 
                     document.getElementById('highPriority').textContent = priority.high;
                     document.getElementById('mediumPriority').textContent = priority.medium;
@@ -166,6 +187,80 @@
                 }
             } catch (error) {
                 console.error('統計情報の読み込みエラー:', error);
+            }
+        }
+
+        // 未返信メンション一覧の読み込み
+        async function loadUnrepliedMentions() {
+            try {
+                const response = await fetch(`${API_URL}/unreplied?hours=2`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const unrepliedList = document.getElementById('unrepliedList');
+
+                    if (result.data.length === 0) {
+                        unrepliedList.innerHTML = '<p class="text-muted text-center">未返信メンションはありません</p>';
+                        return;
+                    }
+
+                    unrepliedList.innerHTML = result.data.map(mention => {
+                        const mentionedAt = new Date(mention.mentioned_at).toLocaleString('ja-JP');
+                        const hoursElapsed = Math.round(
+                            (new Date() - new Date(mention.mentioned_at)) / (1000 * 60 * 60)
+                        );
+
+                        return `
+                            <div class="card mb-2 task-item border-start border-danger border-3">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">${escapeHtml(mention.message_text)}</h6>
+                                            <small class="text-muted">
+                                                <i class="bi bi-person-fill"></i> 対象: <code>${mention.mentioned_user}</code> |
+                                                <i class="bi bi-person"></i> 送信者: <code>${mention.mentioner_user}</code> |
+                                                <i class="bi bi-clock"></i> ${mentionedAt} (${hoursElapsed}時間経過)
+                                            </small>
+                                        </div>
+                                        <div class="ms-3">
+                                            <span class="badge bg-danger">未返信</span>
+                                            <button class="btn btn-sm btn-success ms-2" onclick="markAsReplied('${mention.id}')">
+                                                <i class="bi bi-check"></i> 既読
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('未返信メンション一覧の読み込みエラー:', error);
+                document.getElementById('unrepliedList').innerHTML =
+                    '<p class="text-danger text-center">読み込みエラー</p>';
+            }
+        }
+
+        // 未返信メンションを既読にする
+        async function markAsReplied(mentionId) {
+            if (!confirm('このメンションを既読にしますか？')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/unreplied/${mentionId}/mark-replied`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('メンションを既読にしました！');
+                    loadUnrepliedMentions();
+                    loadStats();
+                } else {
+                    alert('エラー: ' + result.error);
+                }
+            } catch (error) {
+                console.error('既読マークエラー:', error);
+                alert('既読マークに失敗しました');
             }
         }
 
@@ -258,11 +353,13 @@
         // 初回読み込み
         loadStats();
         loadTasks();
+        loadUnrepliedMentions();
 
         // 30秒ごとに自動更新
         setInterval(() => {
             loadStats();
             loadTasks();
+            loadUnrepliedMentions();
         }, 30000);
     </script>
 </body>
