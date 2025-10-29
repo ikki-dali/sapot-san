@@ -35,40 +35,8 @@
                 1. 自分のGoogle Calendarを開く<br>
                 2. カレンダーの「設定と共有」から「特定のユーザーとの共有」セクションに進む<br>
                 3. Service Account（<code id="service-account-email">sapota-san@slack-sapota.iam.gserviceaccount.com</code>）を追加<br>
-                4. 権限を「予定の変更権限」に設定<br>
-                5. 下のフォームでSlack User IDとカレンダーのメールアドレスを登録
+                4. 権限を「予定の変更権限」に設定
             </p>
-        </div>
-
-        <!-- 新規登録フォーム -->
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-plus-circle"></i> 新しいユーザーを登録</h5>
-            </div>
-            <div class="card-body">
-                <form id="addUserForm">
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label for="slackUserId" class="form-label">Slack User ID <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="slackUserId" placeholder="U07M3H4RYK1" required>
-                            <small class="form-text text-muted">例: U07M3H4RYK1</small>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="calendarId" class="form-label">カレンダーID (Gmail) <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="calendarId" placeholder="example@gmail.com" required>
-                            <small class="form-text text-muted">例: yamamotoikki@forestdali.biz</small>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="displayName" class="form-label">表示名</label>
-                            <input type="text" class="form-control" id="displayName" placeholder="山本 一気">
-                            <small class="form-text text-muted">任意</small>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-save"></i> 登録
-                    </button>
-                </form>
-            </div>
         </div>
 
         <!-- 登録済みユーザー一覧 -->
@@ -157,42 +125,6 @@
                 alert('ユーザー一覧の読み込みに失敗しました');
             }
         }
-
-        // ユーザー登録
-        document.getElementById('addUserForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const slackUserId = document.getElementById('slackUserId').value.trim();
-            const calendarId = document.getElementById('calendarId').value.trim();
-            const displayName = document.getElementById('displayName').value.trim();
-
-            try {
-                const response = await fetch(`${API_URL}/calendar/settings`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        slackUserId,
-                        calendarId,
-                        displayName: displayName || null
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    alert('カレンダー設定を保存しました！');
-                    document.getElementById('addUserForm').reset();
-                    loadUsers();
-                } else {
-                    alert(`エラー: ${result.error}`);
-                }
-            } catch (error) {
-                console.error('保存エラー:', error);
-                alert('保存に失敗しました');
-            }
-        });
 
         // ユーザー削除
         async function deleteUser(slackUserId) {

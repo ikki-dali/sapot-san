@@ -270,6 +270,51 @@ async function getUpcomingTasks(req, res) {
   }
 }
 
+/**
+ * タスクに紐づくチャンネル一覧を取得
+ */
+async function getChannels(req, res) {
+  try {
+    const slackService = require('../../services/slackService');
+
+    // タスクテーブルから重複を除いたチャンネルIDを取得
+    const { data: channels, error } = await supabase
+      .from('tasks')
+      .select('channel')
+      .not('channel', 'is', null);
+
+    if (error) {
+      throw error;
+    }
+
+    // 重複を除去
+    const uniqueChannelIds = [...new Set(channels.map(c => c.channel))];
+
+    // チャンネル情報を取得（ID => 名前に変換）
+    const channelInfoMap = await slackService.getChannelsInfo(uniqueChannelIds);
+
+    // ID と名前を含むオブジェクトの配列を作成
+    const channelList = uniqueChannelIds.map(id => ({
+      id,
+      name: channelInfoMap[id]?.name || id
+    }));
+
+    logger.success('チャンネル一覧取得成功', { count: channelList.length });
+
+    res.json({
+      success: true,
+      data: channelList,
+      count: channelList.length
+    });
+  } catch (error) {
+    logger.failure('チャンネル一覧取得エラー', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'チャンネル一覧の取得に失敗しました'
+    });
+  }
+}
+
 module.exports = {
   getTasks,
   getTaskById,
@@ -277,5 +322,6 @@ module.exports = {
   updateTask,
   completeTask,
   deleteTask,
-  getUpcomingTasks
+  getUpcomingTasks,
+  getChannels
 };

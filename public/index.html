@@ -119,10 +119,19 @@
         <!-- 未返信メンション一覧 -->
         <div class="card mb-4">
             <div class="card-header bg-white">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="bi bi-chat-dots-fill text-danger"></i> 未返信メンション一覧</h5>
                     <button class="btn btn-sm btn-danger" onclick="loadUnrepliedMentions()">
                         <i class="bi bi-arrow-clockwise"></i> 更新
+                    </button>
+                </div>
+                <!-- フィルターUI -->
+                <div class="d-flex gap-2 flex-wrap align-items-center">
+                    <select class="form-select form-select-sm" id="unrepliedChannelFilter" style="width: auto;" onchange="filterUnrepliedMentions()">
+                        <option value="">全てのチャンネル</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary" id="unrepliedMyTaskBtn" onclick="toggleUnrepliedMyTask()">
+                        <i class="bi bi-person-check"></i> My task
                     </button>
                 </div>
             </div>
@@ -140,11 +149,23 @@
         <!-- タスク一覧 -->
         <div class="card">
             <div class="card-header bg-white">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="bi bi-list-ul"></i> オープンタスク一覧</h5>
                     <button class="btn btn-sm btn-primary" onclick="loadTasks()">
                         <i class="bi bi-arrow-clockwise"></i> 更新
                     </button>
+                </div>
+                <!-- フィルターUI -->
+                <div class="d-flex gap-2 flex-wrap align-items-center">
+                    <select class="form-select form-select-sm" id="taskChannelFilter" style="width: auto;" onchange="filterTasks()">
+                        <option value="">全てのチャンネル</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary" id="taskMyTaskBtn" onclick="toggleTaskMyTask()">
+                        <i class="bi bi-person-check"></i> My task
+                    </button>
+                    <select class="form-select form-select-sm" id="taskTagFilter" style="width: auto;" onchange="filterTasks()">
+                        <option value="">全てのタグ</option>
+                    </select>
                 </div>
             </div>
             <div class="card-body">
@@ -266,42 +287,8 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    const unrepliedList = document.getElementById('unrepliedList');
-
-                    if (result.data.length === 0) {
-                        unrepliedList.innerHTML = '<p class="text-muted text-center">未返信メンションはありません</p>';
-                        return;
-                    }
-
-                    unrepliedList.innerHTML = result.data.map(mention => {
-                        const mentionedAt = new Date(mention.mentioned_at).toLocaleString('ja-JP');
-                        const hoursElapsed = Math.round(
-                            (new Date() - new Date(mention.mentioned_at)) / (1000 * 60 * 60)
-                        );
-
-                        return `
-                            <div class="card mb-2 task-item border-start border-danger border-3">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div class="flex-grow-1">
-                                            <h6 class="mb-1">${escapeHtml(mention.message_text)}</h6>
-                                            <small class="text-muted">
-                                                <i class="bi bi-person-fill"></i> 対象: ${escapeHtml(mention.mentioned_user_name || mention.mentioned_user)} |
-                                                <i class="bi bi-person"></i> 送信者: ${escapeHtml(mention.mentioner_user_name || mention.mentioner_user)} |
-                                                <i class="bi bi-clock"></i> ${mentionedAt} (${hoursElapsed}時間経過)
-                                            </small>
-                                        </div>
-                                        <div class="ms-3">
-                                            <span class="badge bg-danger">未返信</span>
-                                            <button class="btn btn-sm btn-success ms-2" onclick="markAsReplied('${mention.id}')">
-                                                <i class="bi bi-check"></i> 既読
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
+                    allUnrepliedMentions = result.data;
+                    filterUnrepliedMentions();
                 }
             } catch (error) {
                 console.error('未返信メンション一覧の読み込みエラー:', error);
@@ -340,57 +327,8 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    const taskList = document.getElementById('taskList');
-
-                    if (result.data.length === 0) {
-                        taskList.innerHTML = '<p class="text-muted text-center">タスクはありません</p>';
-                        return;
-                    }
-
-                    taskList.innerHTML = result.data.map(task => {
-                        const priorityClass = task.priority === 1 ? 'priority-high' :
-                                            task.priority === 2 ? 'priority-medium' : 'priority-low';
-                        const priorityLabel = task.priority === 1 ? '高' :
-                                            task.priority === 2 ? '中' : '低';
-                        const priorityColor = task.priority === 1 ? 'danger' :
-                                            task.priority === 2 ? 'warning' : 'success';
-
-                        const dueDate = task.due_date ? new Date(task.due_date).toLocaleString('ja-JP') : '期限なし';
-                        const createdAt = new Date(task.created_at).toLocaleString('ja-JP');
-
-                        // タグバッジの生成
-                        const tagBadges = (task.tags && task.tags.length > 0)
-                            ? task.tags.map(tag =>
-                                `<span class="badge me-1" style="background-color: ${tag.color}">${escapeHtml(tag.name)}</span>`
-                              ).join('')
-                            : '';
-
-                        return `
-                            <div class="card mb-2 task-item ${priorityClass}">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div class="flex-grow-1">
-                                            <h6 class="mb-1">
-                                                ${escapeHtml(task.text)}
-                                                ${tagBadges ? '<div class="mt-1">' + tagBadges + '</div>' : ''}
-                                            </h6>
-                                            <small class="text-muted">
-                                                <i class="bi bi-calendar"></i> 作成: ${createdAt} |
-                                                <i class="bi bi-alarm"></i> 期限: ${dueDate} |
-                                                <i class="bi bi-person"></i> 担当: ${escapeHtml(task.assignee_name || task.assignee)}
-                                            </small>
-                                        </div>
-                                        <div class="ms-3">
-                                            <span class="badge bg-${priorityColor}">優先度: ${priorityLabel}</span>
-                                            <button class="btn btn-sm btn-success ms-2" onclick="completeTask('${task.task_id}')">
-                                                <i class="bi bi-check"></i> 完了
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
+                    allTasks = result.data;
+                    filterTasks();
                 }
             } catch (error) {
                 console.error('タスク一覧の読み込みエラー:', error);
@@ -429,12 +367,255 @@
             return div.innerHTML;
         }
 
+        // フィルター状態を保持するグローバル変数
+        let allTasks = [];
+        let allUnrepliedMentions = [];
+        let taskFilters = {
+            channel: '',
+            myTaskOnly: false,
+            tag: ''
+        };
+        let unrepliedFilters = {
+            channel: '',
+            myTaskOnly: false
+        };
+
+        // チャンネル一覧を読み込む
+        async function loadChannels() {
+            try {
+                const response = await fetch(`${API_URL}/tasks/channels`);
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    const taskChannelFilter = document.getElementById('taskChannelFilter');
+                    const unrepliedChannelFilter = document.getElementById('unrepliedChannelFilter');
+
+                    result.data.forEach(channel => {
+                        const option1 = document.createElement('option');
+                        option1.value = channel.id;  // IDを値として使用
+                        option1.textContent = `#${channel.name}`;  // 名前を表示
+                        taskChannelFilter.appendChild(option1);
+
+                        const option2 = document.createElement('option');
+                        option2.value = channel.id;  // IDを値として使用
+                        option2.textContent = `#${channel.name}`;  // 名前を表示
+                        unrepliedChannelFilter.appendChild(option2);
+                    });
+                }
+            } catch (error) {
+                console.error('チャンネル一覧の読み込みエラー:', error);
+            }
+        }
+
+        // タグ一覧を読み込む
+        async function loadTags() {
+            try {
+                const response = await fetch(`${API_URL}/tags`);
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    const taskTagFilter = document.getElementById('taskTagFilter');
+
+                    result.data.forEach(tag => {
+                        const option = document.createElement('option');
+                        option.value = tag.id;
+                        option.textContent = tag.name;
+                        taskTagFilter.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('タグ一覧の読み込みエラー:', error);
+            }
+        }
+
+        // タスクフィルタリング
+        function filterTasks() {
+            taskFilters.channel = document.getElementById('taskChannelFilter').value;
+            taskFilters.tag = document.getElementById('taskTagFilter').value;
+
+            let filtered = allTasks;
+
+            // チャンネルフィルター
+            if (taskFilters.channel) {
+                filtered = filtered.filter(task => task.channel === taskFilters.channel);
+            }
+
+            // My taskフィルター
+            if (taskFilters.myTaskOnly) {
+                const token = localStorage.getItem('authToken');
+                // トークンからユーザーIDを取得する必要があるため、簡易的に実装
+                // 実際のユーザーIDはauth APIから取得した情報を使う必要がある
+                filtered = filtered.filter(task => {
+                    const currentUserName = localStorage.getItem('userName');
+                    return task.assignee_name === currentUserName || task.assignee === currentUserName;
+                });
+            }
+
+            // タグフィルター
+            if (taskFilters.tag) {
+                filtered = filtered.filter(task =>
+                    task.tags && task.tags.some(tag => tag.id.toString() === taskFilters.tag)
+                );
+            }
+
+            // タスク一覧を再描画
+            renderTasks(filtered);
+        }
+
+        // タスク一覧を描画
+        function renderTasks(tasks) {
+            const taskList = document.getElementById('taskList');
+
+            if (tasks.length === 0) {
+                taskList.innerHTML = '<p class="text-muted text-center">タスクはありません</p>';
+                return;
+            }
+
+            taskList.innerHTML = tasks.map(task => {
+                const priorityClass = task.priority === 1 ? 'priority-high' :
+                                    task.priority === 2 ? 'priority-medium' : 'priority-low';
+                const priorityLabel = task.priority === 1 ? '高' :
+                                    task.priority === 2 ? '中' : '低';
+                const priorityColor = task.priority === 1 ? 'danger' :
+                                    task.priority === 2 ? 'warning' : 'success';
+
+                const dueDate = task.due_date ? new Date(task.due_date).toLocaleString('ja-JP') : '期限なし';
+                const createdAt = new Date(task.created_at).toLocaleString('ja-JP');
+
+                // タグバッジの生成
+                const tagBadges = (task.tags && task.tags.length > 0)
+                    ? task.tags.map(tag =>
+                        `<span class="badge me-1" style="background-color: ${tag.color}">${escapeHtml(tag.name)}</span>`
+                      ).join('')
+                    : '';
+
+                return `
+                    <div class="card mb-2 task-item ${priorityClass}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        ${escapeHtml(task.text)}
+                                        ${tagBadges ? '<div class="mt-1">' + tagBadges + '</div>' : ''}
+                                    </h6>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar"></i> 作成: ${createdAt} |
+                                        <i class="bi bi-alarm"></i> 期限: ${dueDate} |
+                                        <i class="bi bi-person"></i> 担当: ${escapeHtml(task.assignee_name || task.assignee)}
+                                    </small>
+                                </div>
+                                <div class="ms-3">
+                                    <span class="badge bg-${priorityColor}">優先度: ${priorityLabel}</span>
+                                    <button class="btn btn-sm btn-success ms-2" onclick="completeTask('${task.task_id}')">
+                                        <i class="bi bi-check"></i> 完了
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 未返信メンションフィルタリング
+        function filterUnrepliedMentions() {
+            unrepliedFilters.channel = document.getElementById('unrepliedChannelFilter').value;
+
+            let filtered = allUnrepliedMentions;
+
+            // チャンネルフィルター
+            if (unrepliedFilters.channel) {
+                filtered = filtered.filter(mention => mention.channel === unrepliedFilters.channel);
+            }
+
+            // My taskフィルター
+            if (unrepliedFilters.myTaskOnly) {
+                const currentUserName = localStorage.getItem('userName');
+                filtered = filtered.filter(mention =>
+                    mention.mentioned_user_name === currentUserName || mention.mentioned_user === currentUserName
+                );
+            }
+
+            // 未返信メンション一覧を再描画
+            renderUnrepliedMentions(filtered);
+        }
+
+        // 未返信メンション一覧を描画
+        function renderUnrepliedMentions(mentions) {
+            const unrepliedList = document.getElementById('unrepliedList');
+
+            if (mentions.length === 0) {
+                unrepliedList.innerHTML = '<p class="text-muted text-center">未返信メンションはありません</p>';
+                return;
+            }
+
+            unrepliedList.innerHTML = mentions.map(mention => {
+                const mentionedAt = new Date(mention.mentioned_at).toLocaleString('ja-JP');
+                const hoursElapsed = Math.round(
+                    (new Date() - new Date(mention.mentioned_at)) / (1000 * 60 * 60)
+                );
+
+                return `
+                    <div class="card mb-2 task-item border-start border-danger border-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">${escapeHtml(mention.message_text)}</h6>
+                                    <small class="text-muted">
+                                        <i class="bi bi-person-fill"></i> 対象: ${escapeHtml(mention.mentioned_user_name || mention.mentioned_user)} |
+                                        <i class="bi bi-person"></i> 送信者: ${escapeHtml(mention.mentioner_user_name || mention.mentioner_user)} |
+                                        <i class="bi bi-clock"></i> ${mentionedAt} (${hoursElapsed}時間経過)
+                                    </small>
+                                </div>
+                                <div class="ms-3">
+                                    <span class="badge bg-danger">未返信</span>
+                                    <button class="btn btn-sm btn-success ms-2" onclick="markAsReplied('${mention.id}')">
+                                        <i class="bi bi-check"></i> 既読
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // My taskボタン切り替え（タスク）
+        function toggleTaskMyTask() {
+            taskFilters.myTaskOnly = !taskFilters.myTaskOnly;
+            const btn = document.getElementById('taskMyTaskBtn');
+            if (taskFilters.myTaskOnly) {
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-primary');
+            } else {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-primary');
+            }
+            filterTasks();
+        }
+
+        // My taskボタン切り替え（未返信メンション）
+        function toggleUnrepliedMyTask() {
+            unrepliedFilters.myTaskOnly = !unrepliedFilters.myTaskOnly;
+            const btn = document.getElementById('unrepliedMyTaskBtn');
+            if (unrepliedFilters.myTaskOnly) {
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-primary');
+            } else {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-primary');
+            }
+            filterUnrepliedMentions();
+        }
+
         // ページ読み込み時に認証チェック
         checkAuth().then(isAuthenticated => {
             if (!isAuthenticated) return;
 
             // 認証済みの場合のみデータを読み込む
             loadStats();
+            loadChannels();
+            loadTags();
             loadTasks();
             loadUnrepliedMentions();
 

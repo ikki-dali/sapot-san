@@ -556,6 +556,7 @@ app.event('message', async ({ event, client }) => {
     // スレッド返信の場合は未返信状態を解除 & タスク化
     if (event.thread_ts && event.thread_ts !== event.ts) {
       console.log(`✅ スレッド返信を検知 (返信者: ${event.user})`);
+      console.log(`📍 検索条件: channel=${event.channel}, thread_ts=${event.thread_ts}, mentioned_user=${event.user}`);
 
       // 返信者がメンションされている未返信メンションのみを取得
       const { data: unrepliedMentions, error: fetchError } = await supabase
@@ -565,6 +566,17 @@ app.event('message', async ({ event, client }) => {
         .eq('message_ts', event.thread_ts)
         .eq('mentioned_user', event.user)  // 返信者がメンションされているもののみ
         .is('replied_at', null);
+
+      if (fetchError) {
+        console.error('❌ 未返信メンション取得エラー:', fetchError);
+      }
+
+      console.log(`🔍 取得した未返信メンション数: ${unrepliedMentions?.length || 0}`);
+      if (unrepliedMentions) {
+        unrepliedMentions.forEach((m, idx) => {
+          console.log(`  [${idx}] mentioned_user: ${m.mentioned_user}, text: "${m.message_text}"`);
+        });
+      }
 
       if (!fetchError && unrepliedMentions && unrepliedMentions.length > 0) {
         console.log(`📋 返信者 ${event.user} がメンションされている未返信を${unrepliedMentions.length}件タスク化します`);
@@ -654,19 +666,29 @@ app.event('message', async ({ event, client }) => {
         if (analysis.isTask) {
           const mentionList = nonBotMentions.map(id => `<@${id}>`).join(', ');
 
-          // 分析結果の詳細を取得（複数行ある場合は統合）
+          // 分析結果の詳細を取得
           let detailText = '';
-          if (analysis.analyses && analysis.analyses.length > 0) {
+          console.log('🔍 analysis.analyses:', JSON.stringify(analysis.analyses, null, 2));
+          console.log('🔍 analysis.recordedCount:', analysis.recordedCount);
+
+          if (analysis.analyses && Array.isArray(analysis.analyses) && analysis.analyses.length > 0) {
             // タスクと判定された行のみ抽出
-            const taskAnalyses = analysis.analyses.filter(a => a.isTask);
+            const taskAnalyses = analysis.analyses.filter(a => a && a.isTask && typeof a.confidence === 'number');
+            console.log('🔍 taskAnalyses:', taskAnalyses.length);
 
             if (taskAnalyses.length > 0) {
               // 平均確信度を計算
               const avgConfidence = Math.round(
                 taskAnalyses.reduce((sum, a) => sum + a.confidence, 0) / taskAnalyses.length
               );
-              detailText = `\n*確信度:* ${avgConfidence}%\n*検知件数:* ${analysis.recordedCount}件のタスク依頼`;
+              const recordedCount = analysis.recordedCount || taskAnalyses.length;
+              detailText = `\n*確信度:* ${avgConfidence}%\n*検知件数:* ${recordedCount}件のタスク依頼`;
+              console.log('✅ detailText生成:', detailText);
             }
+          } else {
+            // 旧形式のフォールバック（念のため）
+            console.log('⚠️ 旧形式のレスポンスを検出、デフォルト値を使用');
+            detailText = `\n*検知件数:* ${analysis.recordedCount || nonBotMentions.length}件のタスク依頼`;
           }
 
           await client.chat.postMessage({

@@ -10,6 +10,10 @@ const taskController = require('../controllers/taskController');
 // GET /api/tasks?status=open&assignee=U123&channel=C456
 router.get('/', taskController.getTasks);
 
+// チャンネル一覧取得
+// GET /api/tasks/channels
+router.get('/channels', taskController.getChannels);
+
 // 期限が近いタスク取得
 // GET /api/tasks/upcoming?hours=24
 router.get('/upcoming', taskController.getUpcomingTasks);
