@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const taskService = require('./taskService');
 const { supabase } = require('../db/connection');
 const unrepliedService = require('./unrepliedService');
+const userReminderService = require('./userReminderService');
 const notionService = require('./notionService');
 const googleCalendarService = require('./googleCalendarService');
 
@@ -237,6 +238,39 @@ async function sendOverdueReminder(slackClient, task) {
 }
 
 /**
+ * カスタムユーザーリマインドをチェックして実行
+ * @param {Object} slackClient - Slack Boltのclientオブジェクト
+ */
+async function checkAndExecuteUserReminders(slackClient) {
+  try {
+    console.log('🔔 カスタムリマインドチェック開始');
+
+    // 実行すべきリマインドを取得
+    const dueReminders = await userReminderService.getDueReminders();
+
+    if (dueReminders.length === 0) {
+      return;
+    }
+
+    console.log(`📋 ${dueReminders.length}件のリマインドを実行します`);
+
+    // 各リマインドを実行
+    for (const reminder of dueReminders) {
+      const success = await userReminderService.executeReminder(reminder);
+      if (success) {
+        console.log(`✅ リマインド実行成功: ID=${reminder.id}`);
+      } else {
+        console.error(`❌ リマインド実行失敗: ID=${reminder.id}`);
+      }
+    }
+
+    console.log(`✅ カスタムリマインド実行完了 (${dueReminders.length}件)`);
+  } catch (error) {
+    console.error('❌ カスタムリマインドチェックエラー:', error);
+  }
+}
+
+/**
  * リマインダーcronジョブを開始
  * @param {Object} slackClient - Slack Boltのclientオブジェクト
  */
@@ -273,6 +307,13 @@ function startReminderJobs(slackClient) {
     timezone: 'Asia/Tokyo'
   });
 
+  // 1分ごとにカスタムユーザーリマインドをチェック・実行
+  cron.schedule('* * * * *', async () => {
+    await checkAndExecuteUserReminders(slackClient);
+  }, {
+    timezone: 'Asia/Tokyo'
+  });
+
   // Notion連携が有効な場合のみ、定期同期ジョブを起動
   if (notionService.isNotionEnabled()) {
     // 15分ごとにNotionと双方向同期
@@ -298,6 +339,7 @@ function startReminderJobs(slackClient) {
     console.log('  - 毎日 9:00: 24時間以内の期限タスク通知');
     console.log('  - 30分ごと: 未返信メッセージリマインド送信（2時間経過）');
     console.log('  - 毎日 18:00: 期限切れタスク通知');
+    console.log('  - 1分ごと: カスタムユーザーリマインド実行');
     console.log('  - 15分ごと: Notion双方向同期');
   } else {
     console.log('✅ リマインダーcronジョブを開始しました');
@@ -305,6 +347,7 @@ function startReminderJobs(slackClient) {
     console.log('  - 毎日 9:00: 24時間以内の期限タスク通知');
     console.log('  - 30分ごと: 未返信メッセージリマインド送信（2時間経過）');
     console.log('  - 毎日 18:00: 期限切れタスク通知');
+    console.log('  - 1分ごと: カスタムユーザーリマインド実行');
     console.log('  ℹ️ Notion連携は無効です（.envでNOTION_API_KEYとNOTION_DATABASE_IDを設定してください）');
   }
 

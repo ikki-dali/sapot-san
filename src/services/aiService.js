@@ -408,6 +408,107 @@ async function generateAnswerFromSearch(question, searchResults) {
   }
 }
 
+/**
+ * リマインド要求を自然言語から解析
+ * @param {string} text - ユーザーの入力テキスト
+ * @param {string} requestUserId - 要求したユーザーのID
+ * @returns {Promise<Object>} パース結果
+ */
+async function parseReminderRequest(text, requestUserId) {
+  try {
+    console.log(`🔍 リマインド要求をパース中: "${text}"`);
+
+    const now = new Date();
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `あなたはリマインド要求を解析するアシスタントです。
+ユーザーの自然言語の入力から、リマインド情報を抽出してください。
+
+現在の日時: ${now.toISOString()}
+タイムゾーン: Asia/Tokyo (JST, UTC+9)
+
+抽出する情報:
+1. reminderMessage: リマインドするメッセージ内容
+2. targetUserId: 対象ユーザーのSlack ID（メンション形式 <@U123ABC> から抽出、なければrequestUserIdを使用）
+3. scheduleType: スケジュールタイプ
+   - "relative": 相対時間（例: 30分後、1時間後）
+   - "absolute": 絶対時刻（例: 明日15時、2024-12-31 23:59）
+   - "interval": 繰り返し間隔（例: 毎日10時、毎週月曜9時）
+4. scheduleTime: 絶対時刻の場合のISO8601形式の日時
+5. relativeMinutes: 相対時間の場合の分数
+6. intervalMinutes: 繰り返し間隔の場合の分数
+7. reminderType: "once"（1回のみ）または "recurring"（定期）
+8. confidence: 解析の確信度（0-100）
+
+注意:
+- 時刻が指定されていない場合は現在時刻を使用
+- 「毎日」は24時間間隔（1440分）
+- 「毎週」は1週間間隔（10080分）
+- 「毎時」は60分間隔
+
+必ずJSON形式で回答してください:
+{
+  "reminderMessage": "リマインドメッセージ",
+  "targetUserId": "Slack User ID or null",
+  "scheduleType": "relative | absolute | interval",
+  "scheduleTime": "ISO8601形式 or null",
+  "relativeMinutes": 数値 or null,
+  "intervalMinutes": 数値 or null,
+  "reminderType": "once | recurring",
+  "confidence": 0-100の数値,
+  "reason": "解析理由"
+}`
+        },
+        {
+          role: 'user',
+          content: `リクエストユーザーID: ${requestUserId}\n\n以下のテキストからリマインド情報を抽出してください:\n\n${text}`
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.2,
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+
+    // デフォルト値を設定
+    const parsedResult = {
+      reminderMessage: result.reminderMessage || text,
+      targetUserId: result.targetUserId || requestUserId,
+      scheduleType: result.scheduleType || 'relative',
+      scheduleTime: result.scheduleTime || null,
+      relativeMinutes: result.relativeMinutes || null,
+      intervalMinutes: result.intervalMinutes || null,
+      reminderType: result.reminderType || 'once',
+      confidence: result.confidence || 0,
+      reason: result.reason || ''
+    };
+
+    console.log(`✅ リマインド要求パース完了:`);
+    console.log(`   メッセージ: "${parsedResult.reminderMessage}"`);
+    console.log(`   対象ユーザー: ${parsedResult.targetUserId}`);
+    console.log(`   スケジュール: ${parsedResult.scheduleType}`);
+    console.log(`   タイプ: ${parsedResult.reminderType}`);
+    console.log(`   確信度: ${parsedResult.confidence}%`);
+
+    return parsedResult;
+  } catch (error) {
+    console.error('❌ リマインド要求パースエラー:', error.message);
+    return {
+      reminderMessage: text,
+      targetUserId: requestUserId,
+      scheduleType: 'relative',
+      relativeMinutes: 30, // デフォルト30分後
+      reminderType: 'once',
+      confidence: 0,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   summarizeThread,
   determinePriority,
@@ -416,5 +517,6 @@ module.exports = {
   fetchThreadMessages,
   analyzeTaskRequest,
   extractTaskInfo,
-  generateAnswerFromSearch
+  generateAnswerFromSearch,
+  parseReminderRequest
 };

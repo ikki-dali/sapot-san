@@ -3,6 +3,7 @@ const { App } = require('@slack/bolt');
 const { checkConnection, supabase } = require('./src/db/connection');
 const taskService = require('./src/services/taskService');
 const reminderService = require('./src/services/reminderService');
+const userReminderService = require('./src/services/userReminderService');
 const aiService = require('./src/services/aiService');
 const unrepliedService = require('./src/services/unrepliedService');
 const logger = require('./src/utils/logger');
@@ -458,13 +459,9 @@ app.event('app_mention', async ({ event, client }) => {
       return;
     }
 
-    // 2-3. リマインド設定（Phase 3で実装予定）
+    // 2-3. リマインド設定
     if (intentResult.intent === intentService.INTENTS.REMINDER_SETUP) {
-      await client.chat.postMessage({
-        channel: event.channel,
-        thread_ts: event.ts,
-        text: `🔔 リマインド機能は現在開発中です！\n\nもうしばらくお待ちください 🙇`
-      });
+      await handleReminderRequest(client, event, cleanText, intentResult);
       return;
     }
 
@@ -600,6 +597,70 @@ async function handleInformationRequest(client, event, cleanText, intentResult) 
       channel: event.channel,
       thread_ts: event.ts,
       text: `❌ 検索中にエラーが発生しました。\n\nしばらくしてから再度お試しください。`
+    });
+  }
+}
+
+// ========================================
+// ヘルパー関数: リマインド要求の処理
+// ========================================
+async function handleReminderRequest(client, event, cleanText, intentResult) {
+  console.log('🔔 リマインド要求を処理中...');
+
+  try {
+    // 自然言語からリマインド情報をパース
+    const parsedReminder = await aiService.parseReminderRequest(cleanText, event.user);
+
+    // 確信度が低い場合は確認
+    if (parsedReminder.confidence < 70) {
+      console.log(`⚠️  確信度が低いため、確認メッセージを表示します (${parsedReminder.confidence}%)`);
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: `🤔 以下の内容でリマインドを設定しますか？\n\n*メッセージ:* ${parsedReminder.reminderMessage}\n*対象:* <@${parsedReminder.targetUserId}>\n\nよろしければ、このメッセージに ✅ をつけてください。`
+      });
+      return;
+    }
+
+    // リマインドを作成
+    const reminder = await userReminderService.createReminder({
+      reminderType: parsedReminder.reminderType,
+      targetUser: parsedReminder.targetUserId,
+      createdBy: event.user,
+      message: parsedReminder.reminderMessage,
+      channel: event.channel,
+      threadTs: event.ts,
+      scheduleType: parsedReminder.scheduleType,
+      scheduleTime: parsedReminder.scheduleTime,
+      intervalMinutes: parsedReminder.intervalMinutes,
+      relativeMinutes: parsedReminder.relativeMinutes
+    });
+
+    // 次回リマインド時刻を整形
+    const nextReminderTime = new Date(reminder.next_reminder_at).toLocaleString('ja-JP', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
+
+    // 確認メッセージを送信
+    const typeLabel = reminder.reminder_type === 'once' ? '1回のみ' : '定期';
+    await client.chat.postMessage({
+      channel: event.channel,
+      thread_ts: event.ts,
+      text: `✅ リマインドを設定しました！\n\n*ID:* ${reminder.id}\n*タイプ:* ${typeLabel}\n*メッセージ:* ${reminder.message}\n*対象:* <@${reminder.target_user}>\n*次回実行:* ${nextReminderTime}\n\nキャンセルする場合は「@サポ田さん リマインドキャンセル ${reminder.id}」と入力してください。`
+    });
+
+    console.log(`✅ リマインド設定完了: ID=${reminder.id}`);
+  } catch (error) {
+    console.error('❌ リマインド設定エラー:', error);
+    await client.chat.postMessage({
+      channel: event.channel,
+      thread_ts: event.ts,
+      text: `❌ リマインドの設定に失敗しました。\n\nエラー: ${error.message}\n\n例:\n- 「30分後にリマインドして」\n- 「明日15時にミーティングをリマインド」\n- 「毎日10時にスタンドアップをリマインド」`
     });
   }
 }
