@@ -42,8 +42,8 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/calendar', calendarRoutes);
 
-// ルートエンドポイント
-app.get('/', (req, res) => {
+// API情報エンドポイント
+app.get('/api', (req, res) => {
   res.json({
     success: true,
     message: 'サポ田さん API',
@@ -51,17 +51,22 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       tasks: '/api/tasks',
-      stats: '/api/stats'
+      stats: '/api/stats',
+      calendar: '/api/calendar'
     }
   });
 });
 
-// 404エラーハンドラー
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'エンドポイントが見つかりません'
-  });
+// 404エラーハンドラー（APIリクエストのみ）
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({
+      success: false,
+      error: 'エンドポイントが見つかりません'
+    });
+  } else {
+    next();
+  }
 });
 
 // グローバルエラーハンドラー
