@@ -26,9 +26,70 @@
         .task-item:hover {
             background-color: #e9ecef;
         }
+
+        /* ローディング画面 */
+        #loadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0d6efd;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.3s ease-out;
+        }
+        #loadingScreen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+
+        /* メインコンテンツは初期状態で非表示 */
+        #mainContent {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+        #mainContent.visible {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
+    <!-- ローディング画面 -->
+    <div id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2><i class="bi bi-check2-circle"></i> サポ田さん</h2>
+            <p class="loading-text">読み込み中...</p>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div id="mainContent">
     <nav class="navbar navbar-dark bg-primary mb-4">
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">
@@ -504,9 +565,9 @@
                                         <i class="bi bi-person"></i> 担当: ${escapeHtml(task.assignee_name || task.assignee)}
                                     </small>
                                 </div>
-                                <div class="ms-3">
-                                    <span class="badge bg-${priorityColor}">優先度: ${priorityLabel}</span>
-                                    <button class="btn btn-sm btn-success ms-2" onclick="completeTask('${task.task_id}')">
+                                <div class="ms-3 d-flex flex-column align-items-end" style="min-width: 100px;">
+                                    <span class="badge bg-${priorityColor} mb-2">優先度: ${priorityLabel}</span>
+                                    <button class="btn btn-sm btn-success" onclick="completeTask('${task.task_id}')" style="width: 100%;">
                                         <i class="bi bi-check"></i> 完了
                                     </button>
                                 </div>
@@ -567,9 +628,9 @@
                                         <i class="bi bi-clock"></i> ${mentionedAt} (${hoursElapsed}時間経過)
                                     </small>
                                 </div>
-                                <div class="ms-3">
-                                    <span class="badge bg-danger">未返信</span>
-                                    <button class="btn btn-sm btn-success ms-2" onclick="markAsReplied('${mention.id}')">
+                                <div class="ms-3 d-flex flex-column align-items-end" style="min-width: 100px;">
+                                    <span class="badge bg-danger mb-2">未返信</span>
+                                    <button class="btn btn-sm btn-success" onclick="markAsReplied('${mention.id}')" style="width: 100%;">
                                         <i class="bi bi-check"></i> 既読
                                     </button>
                                 </div>
@@ -608,16 +669,42 @@
             filterUnrepliedMentions();
         }
 
+        // ローディング画面を非表示にしてメインコンテンツを表示
+        function hideLoading() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const mainContent = document.getElementById('mainContent');
+
+            loadingScreen.classList.add('fade-out');
+            mainContent.classList.add('visible');
+
+            // アニメーション完了後にローディング画面を削除
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 300);
+        }
+
         // ページ読み込み時に認証チェック
-        checkAuth().then(isAuthenticated => {
+        checkAuth().then(async isAuthenticated => {
             if (!isAuthenticated) return;
 
             // 認証済みの場合のみデータを読み込む
-            loadStats();
-            loadChannels();
-            loadTags();
-            loadTasks();
-            loadUnrepliedMentions();
+            try {
+                // すべてのデータを並行して読み込む
+                await Promise.all([
+                    loadStats(),
+                    loadChannels(),
+                    loadTags(),
+                    loadTasks(),
+                    loadUnrepliedMentions()
+                ]);
+
+                // データ読み込み完了後にローディング画面を非表示
+                hideLoading();
+            } catch (error) {
+                console.error('データ読み込みエラー:', error);
+                // エラーが発生してもローディング画面は非表示にする
+                hideLoading();
+            }
 
             // 30秒ごとに自動更新
             setInterval(() => {
@@ -627,5 +714,6 @@
             }, 30000);
         });
     </script>
+    </div><!-- /mainContent -->
 </body>
 </html>
