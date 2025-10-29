@@ -290,12 +290,22 @@
                         const dueDate = task.due_date ? new Date(task.due_date).toLocaleString('ja-JP') : '期限なし';
                         const createdAt = new Date(task.created_at).toLocaleString('ja-JP');
 
+                        // タグバッジの生成
+                        const tagBadges = (task.tags && task.tags.length > 0)
+                            ? task.tags.map(tag =>
+                                `<span class="badge me-1" style="background-color: ${tag.color}">${escapeHtml(tag.name)}</span>`
+                              ).join('')
+                            : '';
+
                         return `
                             <div class="card mb-2 task-item ${priorityClass}">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div class="flex-grow-1">
-                                            <h6 class="mb-1">${escapeHtml(task.text)}</h6>
+                                            <h6 class="mb-1">
+                                                ${escapeHtml(task.text)}
+                                                ${tagBadges ? '<div class="mt-1">' + tagBadges + '</div>' : ''}
+                                            </h6>
                                             <small class="text-muted">
                                                 <i class="bi bi-calendar"></i> 作成: ${createdAt} |
                                                 <i class="bi bi-alarm"></i> 期限: ${dueDate} |

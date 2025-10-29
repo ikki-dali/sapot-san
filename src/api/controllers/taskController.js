@@ -1,4 +1,5 @@
 const taskService = require('../../services/taskService');
+const tagService = require('../../services/tagService');
 const logger = require('../../utils/logger');
 const { supabase } = require('../../db/connection');
 
@@ -16,6 +17,12 @@ async function getTasks(req, res) {
 
     const tasks = await taskService.getTasks(filters);
 
+    // タスクIDの配列を取得
+    const taskIds = tasks.map(task => task.task_id);
+
+    // タグ情報を一括取得
+    const taskTagsMap = await tagService.getMultipleTaskTags(taskIds);
+
     // 各タスクの担当者名を取得
     const tasksWithNames = await Promise.all(tasks.map(async (task) => {
       // user_calendarsテーブルから名前を取得
@@ -27,7 +34,8 @@ async function getTasks(req, res) {
 
       return {
         ...task,
-        assignee_name: data?.display_name || task.assignee // 名前がない場合はUser IDを表示
+        assignee_name: data?.display_name || task.assignee, // 名前がない場合はUser IDを表示
+        tags: taskTagsMap[task.task_id] || [] // タグ情報を追加
       };
     }));
 
@@ -63,11 +71,17 @@ async function getTaskById(req, res) {
       });
     }
 
+    // タグ情報を取得
+    const tags = await tagService.getTaskTags(taskId);
+
     logger.success('タスク取得成功', { taskId });
 
     res.json({
       success: true,
-      data: task
+      data: {
+        ...task,
+        tags
+      }
     });
   } catch (error) {
     logger.failure('タスク取得エラー', { error: error.message });
@@ -83,7 +97,7 @@ async function getTaskById(req, res) {
  */
 async function createTask(req, res) {
   try {
-    const { text, channel, assignee, dueDate, priority } = req.body;
+    const { text, channel, assignee, dueDate, priority, tagIds } = req.body;
 
     // バリデーション
     if (!text || !channel || !assignee) {
@@ -105,11 +119,22 @@ async function createTask(req, res) {
 
     const newTask = await taskService.createTask(taskData);
 
-    logger.success('タスク作成成功', { taskId: newTask.task_id });
+    // タグが指定されている場合、タグを追加
+    if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+      await tagService.addTagsToTask(newTask.task_id, tagIds);
+    }
+
+    // タグ情報を含めて返す
+    const tags = await tagService.getTaskTags(newTask.task_id);
+
+    logger.success('タスク作成成功', { taskId: newTask.task_id, tagCount: tags.length });
 
     res.status(201).json({
       success: true,
-      data: newTask
+      data: {
+        ...newTask,
+        tags
+      }
     });
   } catch (error) {
     logger.failure('タスク作成エラー', { error: error.message });
