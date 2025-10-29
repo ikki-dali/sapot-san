@@ -465,7 +465,13 @@ app.event('app_mention', async ({ event, client }) => {
       return;
     }
 
-    // 2-4. ヘルプ / その他
+    // 2-4. リマインドキャンセル
+    if (intentResult.intent === intentService.INTENTS.REMINDER_CANCEL) {
+      await handleReminderCancelRequest(client, event, cleanText, intentResult);
+      return;
+    }
+
+    // 2-5. ヘルプ / その他
     await showHelpMessage(client, event);
 
   } catch (error) {
@@ -666,6 +672,74 @@ async function handleReminderRequest(client, event, cleanText, intentResult) {
 }
 
 // ========================================
+// ヘルパー関数: リマインドキャンセル処理
+// ========================================
+async function handleReminderCancelRequest(client, event, cleanText, intentResult) {
+  console.log('🚫 リマインドキャンセル要求を処理中...');
+
+  try {
+    // テキストから数字（ID）を抽出
+    const idMatch = cleanText.match(/\d+/);
+    
+    let reminderId = null;
+    let reminder = null;
+
+    if (idMatch) {
+      // IDが指定されている場合
+      reminderId = parseInt(idMatch[0]);
+      reminder = await userReminderService.getReminder(reminderId);
+      
+      if (!reminder) {
+        await client.chat.postMessage({
+          channel: event.channel,
+          thread_ts: event.ts,
+          text: `❌ ID=${reminderId} のリマインドが見つかりません。\n\n\`/task-list\` でアクティブなリマインドを確認してください。`
+        });
+        return;
+      }
+    } else {
+      // IDが指定されていない場合、スレッド内を検索
+      console.log('📍 スレッド内のリマインダーを検索中...');
+      // スレッド内の返信の場合はevent.thread_tsを、親メッセージの場合はevent.tsを使う
+      const threadTs = event.thread_ts || event.ts;
+      console.log(`🔍 検索対象threadTs: ${threadTs}`);
+      reminder = await userReminderService.getReminderByThread(threadTs, event.user);
+      
+      if (!reminder) {
+        await client.chat.postMessage({
+          channel: event.channel,
+          thread_ts: event.ts,
+          text: `⚠️  このスレッド内にアクティブなリマインドが見つかりません。\n\nID を指定してキャンセルする場合：\n\`@サポ田さん リマインドキャンセル [ID]\``
+        });
+        return;
+      }
+      reminderId = reminder.id;
+    }
+
+    // キャンセルを実行
+    const success = await userReminderService.cancelReminder(reminderId, event.user);
+
+    if (success) {
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: `✅ リマインドID=${reminderId}をキャンセルしました。\n\n*メッセージ:* ${reminder.message}`
+      });
+      console.log(`✅ リマインドキャンセル完了: ID=${reminderId}`);
+    } else {
+      throw new Error('キャンセルに失敗しました');
+    }
+  } catch (error) {
+    console.error('❌ リマインドキャンセルエラー:', error);
+    await client.chat.postMessage({
+      channel: event.channel,
+      thread_ts: event.ts,
+      text: `❌ リマインドのキャンセルに失敗しました。\n\nエラー: ${error.message}`
+    });
+  }
+}
+
+// ========================================
 // ヘルパー関数: ヘルプメッセージ表示
 // ========================================
 async function showHelpMessage(client, event) {
@@ -813,6 +887,12 @@ app.event('message', async ({ event, client }) => {
       const nonBotMentions = mentionedUsers.filter(userId => userId !== botUserId);
 
       console.log(`🔍 ボット以外のメンション: ${nonBotMentions.length}件`, nonBotMentions);
+
+      // ボットのみのメンションの場合はスキップ（app_mentionイベントで処理）
+      if (nonBotMentions.length === 0) {
+        console.log('⏭️  ボットのみのメンションはapp_mentionで処理');
+        return;
+      }
 
       // ボット以外へのメンションがある場合、AI分析
       if (nonBotMentions.length > 0) {

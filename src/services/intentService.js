@@ -7,10 +7,11 @@ const openai = new OpenAI({
 
 // 意図の種類
 const INTENTS = {
-  TASK_REQUEST: 'task_request',      // タスク依頼
-  INFORMATION: 'information',         // 情報検索・質問
-  REMINDER_SETUP: 'reminder_setup',   // リマインド設定
-  HELP: 'help'                        // ヘルプ表示
+  TASK_REQUEST: 'task_request',       // タスク依頼
+  INFORMATION: 'information',          // 情報検索・質問
+  REMINDER_SETUP: 'reminder_setup',    // リマインド設定
+  REMINDER_CANCEL: 'reminder_cancel',  // リマインドキャンセル
+  HELP: 'help'                         // ヘルプ表示
 };
 
 /**
@@ -22,10 +23,26 @@ async function detectIntent(text) {
   try {
     console.log('🔍 意図判定開始:', text);
 
-    // 事前チェック: リマインド関連キーワードがあれば強制的にreminder_setup
-    const reminderKeywords = ['リマインド', 'りまいんど', 'アラート', '通知して', '知らせて'];
+    // 事前チェック1: リマインドキャンセルキーワードがあれば強制的にreminder_cancel
+    const cancelKeywords = ['キャンセル', 'きゃんせる', '中止', 'やめて', '取消', '削除'];
+    const reminderKeywords = ['リマインド', 'りまいんど', 'アラート', '通知', '知らせて'];
     const lowerText = text.toLowerCase();
 
+    // キャンセルとリマインドの両方が含まれているか確認
+    const hasCancelKeyword = cancelKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
+    const hasReminderKeyword = reminderKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
+
+    if (hasCancelKeyword && hasReminderKeyword) {
+      console.log(`🚫 リマインドキャンセルを検出 → reminder_cancel に強制判定`);
+      return {
+        intent: INTENTS.REMINDER_CANCEL,
+        confidence: 100,
+        reason: 'リマインドキャンセルキーワードが検出されたため',
+        originalText: text
+      };
+    }
+
+    // 事前チェック2: リマインド関連キーワードがあれば強制的にreminder_setup
     for (const keyword of reminderKeywords) {
       if (lowerText.includes(keyword.toLowerCase())) {
         console.log(`🔔 キーワード "${keyword}" を検出 → reminder_setup に強制判定`);
