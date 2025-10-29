@@ -333,6 +333,81 @@ async function extractTaskInfo(messageText) {
   }
 }
 
+/**
+ * 検索結果からAI回答を生成
+ * @param {string} question - ユーザーの質問
+ * @param {Array} searchResults - searchServiceからの検索結果
+ * @returns {Promise<Object>} AI生成の回答と出典
+ */
+async function generateAnswerFromSearch(question, searchResults) {
+  try {
+    console.log(`🤖 AI回答生成開始: "${question}"`);
+
+    if (!searchResults || searchResults.length === 0) {
+      return {
+        answer: '申し訳ございません。関連する情報が見つかりませんでした。\n\n別のキーワードで質問していただくか、より具体的な質問をしていただけますか？',
+        sources: [],
+        confidence: 0
+      };
+    }
+
+    // 検索結果を整形（上位5件まで）
+    const topResults = searchResults.slice(0, 5);
+    const contextText = topResults.map((result, index) => {
+      const date = new Date(result.timestamp).toLocaleDateString('ja-JP');
+      return `[${index + 1}] チャンネル: #${result.channel.name} (${date})\n内容: ${result.message.text}\n`;
+    }).join('\n');
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `あなたはSlackワークスペースの情報アシスタントです。
+ユーザーの質問に対して、提供された過去の会話履歴から正確で簡潔な回答を作成してください。
+
+回答の際の注意点：
+- 情報は提供された会話履歴のみを参照してください
+- 推測や想像で回答しないでください
+- 回答は日本語で、簡潔かつわかりやすく
+- 回答の最後に出典（どのチャンネルの情報か）を明記してください`
+        },
+        {
+          role: 'user',
+          content: `質問: ${question}\n\n関連する過去の会話:\n${contextText}\n\n上記の情報から質問に答えてください。`
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0.3
+    });
+
+    const answer = response.choices[0].message.content;
+
+    // 出典情報を抽出
+    const sources = topResults.map(result => ({
+      channel: result.channel.name,
+      date: new Date(result.timestamp).toLocaleDateString('ja-JP'),
+      preview: result.message.text.substring(0, 100) + '...'
+    }));
+
+    console.log(`✅ AI回答生成完了 (${sources.length}件の出典)`);
+
+    return {
+      answer,
+      sources,
+      confidence: topResults.length > 0 ? Math.min(topResults[0].relevanceScore, 90) : 0
+    };
+  } catch (error) {
+    console.error('❌ AI回答生成エラー:', error.message);
+    return {
+      answer: 'AIによる回答生成中にエラーが発生しました。しばらくしてから再度お試しください。',
+      sources: [],
+      confidence: 0,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   summarizeThread,
   determinePriority,
@@ -340,5 +415,6 @@ module.exports = {
   suggestAssignee,
   fetchThreadMessages,
   analyzeTaskRequest,
-  extractTaskInfo
+  extractTaskInfo,
+  generateAnswerFromSearch
 };
