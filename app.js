@@ -417,15 +417,73 @@ app.command('/remind-sapota', async ({ command, ack, client }) => {
 });
 
 // ===============================
-// 6. メンションを検知（未返信チェック用）
+// 6. メンションを検知（AI自動タスク化）
 // ===============================
 app.event('app_mention', async ({ event, client }) => {
   try {
-    // 未返信メッセージとして記録（24時間後に自動タスク化される可能性）
+    // メッセージからメンション部分を削除してクリーンなテキストを取得
+    const cleanText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+
+    // AI機能が有効な場合はタスク判定を実行
+    if (isAIEnabled && process.env.AI_AUTO_TASK_ENABLED === 'true') {
+      console.log('🤖 メンションをAI分析開始:', cleanText);
+
+      // タスクかどうかを判定
+      const analysis = await aiService.analyzeTaskRequest(cleanText);
+
+      // 確信度が70%以上の場合、タスクとして自動作成
+      if (analysis.isTask && analysis.confidence >= 70) {
+        console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
+
+        // タスク情報を抽出
+        const taskInfo = await aiService.extractTaskInfo(cleanText);
+
+        // タスクをデータベースに作成
+        const newTask = await taskService.createTask({
+          text: taskInfo.title,
+          channel: event.channel,
+          messageTs: event.ts,
+          createdBy: event.user,
+          assignee: event.user, // メンションしたユーザーを担当者に
+          dueDate: taskInfo.dueDate ? new Date(taskInfo.dueDate) : null,
+          priority: taskInfo.priority
+        });
+
+        // タスク作成完了を通知
+        let notificationText = `✅ タスクを自動作成しました！\n\n*タスクID:* ${newTask.task_id}\n*内容:* ${taskInfo.title}\n*担当:* <@${event.user}>\n*優先度:* ${getPriorityEmoji(taskInfo.priority)} ${getPriorityLabel(taskInfo.priority)}`;
+
+        if (taskInfo.dueDate) {
+          const dueDateStr = new Date(taskInfo.dueDate).toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Tokyo'
+          });
+          notificationText += `\n*期限:* ${dueDateStr}`;
+        }
+
+        notificationText += `\n\n💡 AI判定: ${analysis.reason} (確信度: ${analysis.confidence}%)`;
+
+        await client.chat.postMessage({
+          channel: event.channel,
+          thread_ts: event.ts,
+          text: notificationText
+        });
+
+        logger.task(`タスク自動作成: ${newTask.task_id} (AI判定, 確信度: ${analysis.confidence}%)`);
+        return;
+      } else {
+        console.log(`❌ タスクではないと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
+      }
+    }
+
+    // タスクではない、またはAI機能が無効な場合はヘルプメッセージを表示
     await unrepliedService.recordMention({
       channel: event.channel,
       messageTs: event.ts,
-      mentionedUser: event.user, // メンションしたユーザー（このメッセージに返信すべき人）
+      mentionedUser: event.user,
       mentionerUser: event.user,
       text: event.text
     });
@@ -433,10 +491,21 @@ app.event('app_mention', async ({ event, client }) => {
     await client.chat.postMessage({
       channel: event.channel,
       thread_ts: event.ts,
-      text: `こんにちは！サポ田さんです 👋\n\nタスク管理のお手伝いをします！\n• ✅ や :memo: のリアクションでタスク作成\n• \`/task-list\` でタスク一覧表示\n• \`/task-done [タスクID]\` でタスク完了\n• ⚡ショートカット「Create Task with Deadline」で期限付きタスク作成\n\n💡 このメッセージに24時間以上返信がない場合、自動的にタスク化されます。`
+      text: `こんにちは！サポ田さんです 👋\n\nタスク管理のお手伝いをします！\n• ✅ や :memo: のリアクションでタスク作成\n• \`/task-list\` でタスク一覧表示\n• \`/task-done [タスクID]\` でタスク完了\n• ⚡ショートカット「Create Task with Deadline」で期限付きタスク作成\n• 💡 @メンションでタスク依頼をすると自動でタスク化されます\n\n💡 このメッセージに24時間以上返信がない場合、自動的にタスク化されます。`
     });
   } catch (error) {
     console.error('メンション応答エラー:', error);
+
+    // エラー時はユーザーに通知
+    try {
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: `❌ エラーが発生しました: ${error.message}\n\n手動でタスクを作成するには、✅ や :memo: のリアクションをつけてください。`
+      });
+    } catch (notifyError) {
+      console.error('エラー通知失敗:', notifyError);
+    }
   }
 });
 

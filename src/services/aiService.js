@@ -208,10 +208,137 @@ async function fetchThreadMessages(slackClient, channel, threadTs) {
   }
 }
 
+/**
+ * メッセージがタスク依頼かどうかをAIで判定する
+ * @param {string} messageText - メッセージテキスト
+ * @returns {Promise<{isTask: boolean, confidence: number}>} タスクかどうかと確信度(0-100)
+ */
+async function analyzeTaskRequest(messageText) {
+  try {
+    if (!messageText || messageText.trim().length === 0) {
+      return { isTask: false, confidence: 0 };
+    }
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `あなたはSlackメッセージを分析し、それがタスク依頼かどうかを判定するアシスタントです。
+
+以下のような場合は「タスク」と判定してください:
+- 明確な依頼や指示（「〜してください」「〜をお願いします」「〜を作成して」など）
+- 期限付きの作業依頼（「明日までに〜」「今週中に〜」など）
+- ToDo形式の内容（「〜する必要がある」「〜をやる」など）
+- バグ修正や問題解決の依頼
+
+以下のような場合は「タスクではない」と判定してください:
+- 単なる質問や相談（「〜について教えて」「〜はどう思う？」など）
+- 情報共有や報告（「〜しました」「〜になっています」など）
+- 挨拶や雑談
+- ヘルプの要求（「使い方は？」など）
+
+必ずJSON形式で回答してください:
+{
+  "isTask": true/false,
+  "confidence": 0-100の数値,
+  "reason": "判定理由"
+}`
+        },
+        {
+          role: 'user',
+          content: `以下のメッセージを分析してください:\n\n${messageText}`
+        }
+      ],
+      max_tokens: 150,
+      temperature: 0.1,
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    console.log(`🤖 タスク判定: ${result.isTask ? 'タスク' : 'タスクではない'} (確信度: ${result.confidence}%) - ${result.reason}`);
+
+    return {
+      isTask: result.isTask === true,
+      confidence: result.confidence || 0,
+      reason: result.reason || ''
+    };
+  } catch (error) {
+    console.error('❌ タスク判定エラー:', error.message);
+    return { isTask: false, confidence: 0, reason: 'エラー' };
+  }
+}
+
+/**
+ * タスクメッセージから情報を抽出する
+ * @param {string} messageText - メッセージテキスト
+ * @returns {Promise<{title: string, dueDate: string|null, priority: number}>}
+ */
+async function extractTaskInfo(messageText) {
+  try {
+    if (!messageText || messageText.trim().length === 0) {
+      return { title: '（タスク内容なし）', dueDate: null, priority: 2 };
+    }
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `あなたはタスク情報を抽出するアシスタントです。
+メッセージから以下の情報を抽出してください:
+
+1. タスクタイトル: 簡潔で明確なタスク内容（1-2文）
+2. 期限: メッセージに期限が含まれている場合はISO8601形式で抽出（例: 2024-12-31T23:59:59+09:00）
+   - 「明日」「今日」などの相対的な表現も解釈してください
+   - 時刻が指定されていない場合は23:59:59を使用してください
+   - 期限の記載がない場合はnull
+3. 優先度: 1(高), 2(中), 3(低)のいずれか
+
+現在の日時: ${new Date().toISOString()}
+タイムゾーン: Asia/Tokyo (JST, UTC+9)
+
+必ずJSON形式で回答してください:
+{
+  "title": "タスクタイトル",
+  "dueDate": "ISO8601形式の日時 or null",
+  "priority": 1-3の数値
+}`
+        },
+        {
+          role: 'user',
+          content: `以下のメッセージからタスク情報を抽出してください:\n\n${messageText}`
+        }
+      ],
+      max_tokens: 200,
+      temperature: 0.2,
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    console.log(`📝 タスク情報抽出: タイトル="${result.title}", 期限=${result.dueDate}, 優先度=${result.priority}`);
+
+    return {
+      title: result.title || messageText.substring(0, 100),
+      dueDate: result.dueDate || null,
+      priority: [1, 2, 3].includes(result.priority) ? result.priority : 2
+    };
+  } catch (error) {
+    console.error('❌ タスク情報抽出エラー:', error.message);
+    return {
+      title: messageText.substring(0, 100),
+      dueDate: null,
+      priority: 2
+    };
+  }
+}
+
 module.exports = {
   summarizeThread,
   determinePriority,
   formatTaskText,
   suggestAssignee,
-  fetchThreadMessages
+  fetchThreadMessages,
+  analyzeTaskRequest,
+  extractTaskInfo
 };
