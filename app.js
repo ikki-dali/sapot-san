@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { App } = require('@slack/bolt');
-const { checkConnection } = require('./src/db/connection');
+const { checkConnection, supabase } = require('./src/db/connection');
 const taskService = require('./src/services/taskService');
 const reminderService = require('./src/services/reminderService');
 const aiService = require('./src/services/aiService');
@@ -553,14 +553,63 @@ app.event('message', async ({ event, client }) => {
       return;
     }
 
-    // スレッド返信の場合は未返信状態を解除
+    // スレッド返信の場合は未返信状態を解除 & タスク化
     if (event.thread_ts && event.thread_ts !== event.ts) {
-      console.log('✅ スレッド返信を検知、未返信状態を解除');
-      await unrepliedService.markAsReplied(
-        event.channel,
-        event.thread_ts,
-        event.user
-      );
+      console.log('✅ スレッド返信を検知、未返信状態を解除 & タスク化');
+
+      // 未返信メンションを取得
+      const { data: unrepliedMentions, error: fetchError } = await supabase
+        .from('unreplied_mentions')
+        .select('*')
+        .eq('channel', event.channel)
+        .eq('message_ts', event.thread_ts)
+        .is('replied_at', null);
+
+      if (!fetchError && unrepliedMentions && unrepliedMentions.length > 0) {
+        console.log(`📋 ${unrepliedMentions.length}件の未返信メンションをタスク化します`);
+
+        for (const mention of unrepliedMentions) {
+          try {
+            // タスクを作成
+            const newTask = await taskService.createTask({
+              text: `【返信あり】${mention.message_text}`,
+              channel: mention.channel,
+              messageTs: mention.message_ts,
+              createdBy: 'auto_reply_system',
+              assignee: mention.mentioned_user,
+              priority: 2
+            });
+
+            // 未返信記録を更新（replied_at と task_id）
+            await supabase
+              .from('unreplied_mentions')
+              .update({
+                replied_at: new Date().toISOString(),
+                auto_tasked: true,
+                task_id: newTask.task_id
+              })
+              .eq('id', mention.id);
+
+            console.log(`✅ タスク化完了: ${newTask.task_id} (対象: ${mention.mentioned_user})`);
+
+            // Slackに通知
+            await client.chat.postMessage({
+              channel: event.channel,
+              thread_ts: event.thread_ts,
+              text: `✅ 返信を確認しました。タスクとして記録しました。\n\n*タスクID:* ${newTask.task_id}\n*担当:* <@${mention.mentioned_user}>\n*優先度:* 🟡 中\n\n完了したら \`/task-done ${newTask.task_id}\` を実行してください。`
+            });
+          } catch (taskError) {
+            console.error(`⚠️ タスク化失敗 (ID: ${mention.id}):`, taskError.message);
+          }
+        }
+      } else {
+        // 未返信メンションがない場合は単純に返信マーク
+        await unrepliedService.markAsReplied(
+          event.channel,
+          event.thread_ts,
+          event.user
+        );
+      }
     }
 
     // メッセージテキストがない場合はスキップ
