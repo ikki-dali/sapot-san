@@ -218,8 +218,8 @@
                                         <div class="flex-grow-1">
                                             <h6 class="mb-1">${escapeHtml(mention.message_text)}</h6>
                                             <small class="text-muted">
-                                                <i class="bi bi-person-fill"></i> 対象: <code>${mention.mentioned_user}</code> |
-                                                <i class="bi bi-person"></i> 送信者: <code>${mention.mentioner_user}</code> |
+                                                <i class="bi bi-person-fill"></i> 対象: ${escapeHtml(mention.mentioned_user_name || mention.mentioned_user)} |
+                                                <i class="bi bi-person"></i> 送信者: ${escapeHtml(mention.mentioner_user_name || mention.mentioner_user)} |
                                                 <i class="bi bi-clock"></i> ${mentionedAt} (${hoursElapsed}時間経過)
                                             </small>
                                         </div>
