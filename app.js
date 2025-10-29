@@ -555,18 +555,19 @@ app.event('message', async ({ event, client }) => {
 
     // スレッド返信の場合は未返信状態を解除 & タスク化
     if (event.thread_ts && event.thread_ts !== event.ts) {
-      console.log('✅ スレッド返信を検知、未返信状態を解除 & タスク化');
+      console.log(`✅ スレッド返信を検知 (返信者: ${event.user})`);
 
-      // 未返信メンションを取得
+      // 返信者がメンションされている未返信メンションのみを取得
       const { data: unrepliedMentions, error: fetchError } = await supabase
         .from('unreplied_mentions')
         .select('*')
         .eq('channel', event.channel)
         .eq('message_ts', event.thread_ts)
+        .eq('mentioned_user', event.user)  // 返信者がメンションされているもののみ
         .is('replied_at', null);
 
       if (!fetchError && unrepliedMentions && unrepliedMentions.length > 0) {
-        console.log(`📋 ${unrepliedMentions.length}件の未返信メンションをタスク化します`);
+        console.log(`📋 返信者 ${event.user} がメンションされている未返信を${unrepliedMentions.length}件タスク化します`);
 
         for (const mention of unrepliedMentions) {
           try {

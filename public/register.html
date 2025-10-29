@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規登録 - サポ田さん</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 0;
+        }
+        .register-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+            max-width: 500px;
+            width: 100%;
+            margin: 20px;
+        }
+        .register-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .register-body {
+            padding: 40px 30px;
+        }
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .btn-register {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        .btn-register:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .alert {
+            border-radius: 10px;
+        }
+        .password-requirements {
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-card">
+        <div class="register-header">
+            <h2><i class="bi bi-check2-circle"></i> サポ田さん</h2>
+            <p class="mb-0">タスク管理ダッシュボード</p>
+        </div>
+        <div class="register-body">
+            <h4 class="text-center mb-4">新規ユーザー登録</h4>
+
+            <div id="alertContainer"></div>
+
+            <form id="registerForm">
+                <div class="mb-3">
+                    <label for="slackUserId" class="form-label">
+                        <i class="bi bi-slack"></i> Slackユーザー ID <span class="text-danger">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="slackUserId"
+                        name="slackUserId"
+                        placeholder="U01234ABCDE"
+                        required
+                    >
+                    <small class="text-muted">
+                        SlackのユーザーIDを入力してください（例: U01234ABCDE）
+                    </small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="name" class="form-label">
+                        <i class="bi bi-person"></i> 名前 <span class="text-danger">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="name"
+                        name="name"
+                        placeholder="山田 太郎"
+                        required
+                    >
+                </div>
+
+                <div class="mb-3">
+                    <label for="email" class="form-label">
+                        <i class="bi bi-envelope"></i> メールアドレス <span class="text-danger">*</span>
+                    </label>
+                    <input
+                        type="email"
+                        class="form-control"
+                        id="email"
+                        name="email"
+                        placeholder="example@example.com"
+                        required
+                    >
+                </div>
+
+                <div class="mb-3">
+                    <label for="password" class="form-label">
+                        <i class="bi bi-lock"></i> パスワード <span class="text-danger">*</span>
+                    </label>
+                    <input
+                        type="password"
+                        class="form-control"
+                        id="password"
+                        name="password"
+                        placeholder="パスワードを入力"
+                        required
+                        minlength="6"
+                    >
+                    <small class="password-requirements">
+                        <i class="bi bi-info-circle"></i> 6文字以上で入力してください
+                    </small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="confirmPassword" class="form-label">
+                        <i class="bi bi-lock-fill"></i> パスワード（確認） <span class="text-danger">*</span>
+                    </label>
+                    <input
+                        type="password"
+                        class="form-control"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        placeholder="パスワードを再入力"
+                        required
+                        minlength="6"
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-register w-100 mb-3">
+                    <i class="bi bi-person-plus"></i> 登録する
+                </button>
+
+                <div class="text-center">
+                    <p class="text-muted mb-0">
+                        すでにアカウントをお持ちの方は
+                        <a href="login.html" class="text-decoration-none">ログイン</a>
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 環境に応じてAPI URLを自動設定
+        const API_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:3000/api'
+            : '/api';
+
+        // 既にログイン済みの場合はダッシュボードにリダイレクト
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            fetch(`${API_URL}/auth/me`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    window.location.href = 'index.html';
+                }
+            })
+            .catch(() => {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userName');
+            });
+        }
+
+        // 登録フォームの送信処理
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const slackUserId = document.getElementById('slackUserId').value.trim();
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            // パスワード確認
+            if (password !== confirmPassword) {
+                showAlert('danger', 'パスワードが一致しません');
+                return;
+            }
+
+            // ローディング表示
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 登録中...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        slackUserId,
+                        name,
+                        email,
+                        password,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('success', 'ユーザー登録が完了しました！ログイン画面に移動します...');
+
+                    // 2秒後にログイン画面にリダイレクト
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                } else {
+                    showAlert('danger', result.error || 'ユーザー登録に失敗しました');
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('登録エラー:', error);
+                showAlert('danger', 'ユーザー登録に失敗しました。もう一度お試しください。');
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+
+        // アラート表示関数
+        function showAlert(type, message) {
+            const alertContainer = document.getElementById('alertContainer');
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

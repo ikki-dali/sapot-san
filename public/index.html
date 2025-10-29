@@ -35,9 +35,15 @@
                 <i class="bi bi-check2-circle"></i> サポ田さん - タスク管理ダッシュボード
             </span>
             <div class="d-flex align-items-center gap-3">
+                <span class="text-white me-2">
+                    <i class="bi bi-person-circle"></i> <span id="userName">ゲスト</span>
+                </span>
                 <a href="calendar-settings.html" class="btn btn-light btn-sm">
                     <i class="bi bi-calendar3"></i> カレンダー設定
                 </a>
+                <button onclick="logout()" class="btn btn-danger btn-sm">
+                    <i class="bi bi-box-arrow-right"></i> ログアウト
+                </button>
                 <span class="text-white">
                     <i class="bi bi-clock"></i> <span id="currentTime"></span>
                 </span>
@@ -158,6 +164,68 @@
         const API_URL = window.location.hostname === 'localhost'
             ? 'http://localhost:3000/api'
             : '/api';
+
+        // 認証チェック
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userName');
+                    window.location.href = 'login.html';
+                    return false;
+                }
+
+                // ユーザー名を表示
+                const userName = result.data.name || localStorage.getItem('userName') || 'ゲスト';
+                document.getElementById('userName').textContent = userName;
+                localStorage.setItem('userName', userName);
+
+                return true;
+            } catch (error) {
+                console.error('認証エラー:', error);
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userName');
+                window.location.href = 'login.html';
+                return false;
+            }
+        }
+
+        // ログアウト処理
+        async function logout() {
+            if (!confirm('ログアウトしますか？')) return;
+
+            const token = localStorage.getItem('authToken');
+
+            try {
+                await fetch(`${API_URL}/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+            } catch (error) {
+                console.error('ログアウトエラー:', error);
+            }
+
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userName');
+            window.location.href = 'login.html';
+        }
 
         // 現在時刻の更新
         function updateTime() {
@@ -361,17 +429,22 @@
             return div.innerHTML;
         }
 
-        // 初回読み込み
-        loadStats();
-        loadTasks();
-        loadUnrepliedMentions();
+        // ページ読み込み時に認証チェック
+        checkAuth().then(isAuthenticated => {
+            if (!isAuthenticated) return;
 
-        // 30秒ごとに自動更新
-        setInterval(() => {
+            // 認証済みの場合のみデータを読み込む
             loadStats();
             loadTasks();
             loadUnrepliedMentions();
-        }, 30000);
+
+            // 30秒ごとに自動更新
+            setInterval(() => {
+                loadStats();
+                loadTasks();
+                loadUnrepliedMentions();
+            }, 30000);
+        });
     </script>
 </body>
 </html>
