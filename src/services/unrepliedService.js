@@ -75,21 +75,25 @@ async function markAsReplied(channel, threadTs, userId) {
 
 /**
  * 未返信メッセージを取得
- * @param {number} hoursThreshold - 何時間以上未返信のものを取得するか
+ * @param {number} hoursThreshold - 何時間以上未返信のものを取得するか（0=全件取得）
  * @returns {Promise<Array>} 未返信メッセージの配列
  */
 async function getUnrepliedMentions(hoursThreshold = 24) {
   try {
-    const thresholdTime = new Date();
-    thresholdTime.setHours(thresholdTime.getHours() - hoursThreshold);
-
-    const { data, error } = await supabase
+    let query = supabase
       .from('unreplied_mentions')
       .select('*')
       .is('replied_at', null)
-      .eq('auto_tasked', false)
-      .lt('mentioned_at', thresholdTime.toISOString())
-      .order('mentioned_at', { ascending: true });
+      .eq('auto_tasked', false);
+
+    // hoursThreshold が 0 より大きい場合のみ時間フィルタを適用
+    if (hoursThreshold > 0) {
+      const thresholdTime = new Date();
+      thresholdTime.setHours(thresholdTime.getHours() - hoursThreshold);
+      query = query.lt('mentioned_at', thresholdTime.toISOString());
+    }
+
+    const { data, error } = await query.order('mentioned_at', { ascending: false });
 
     if (error) throw error;
 
