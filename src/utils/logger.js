@@ -74,7 +74,9 @@ const logger = winston.createLogger({
     new winston.transports.File({
       filename: path.join(__dirname, '../../logs/rejections.log')
     })
-  ] : []
+  ] : [],
+  // 開発環境では例外でプロセスを終了しない
+  exitOnError: false
 });
 
 // ヘルパー関数: 絵文字付きログ
