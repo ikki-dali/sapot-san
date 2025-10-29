@@ -424,77 +424,56 @@ app.event('app_mention', async ({ event, client }) => {
     // メッセージからメンション部分を削除してクリーンなテキストを取得
     const cleanText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
-    // AI機能が有効な場合はタスク判定を実行
-    if (isAIEnabled && process.env.AI_AUTO_TASK_ENABLED === 'true') {
-      console.log('🤖 メンションをAI分析開始:', cleanText);
+    console.log('🤖 サポ田さんメンション受信:', cleanText);
 
-      // タスクかどうかを判定
-      const analysis = await aiService.analyzeTaskRequest(cleanText);
-
-      // 確信度が70%以上の場合、タスクとして自動作成
-      if (analysis.isTask && analysis.confidence >= 70) {
-        console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
-
-        // タスク情報を抽出
-        const taskInfo = await aiService.extractTaskInfo(cleanText);
-
-        // タスクをデータベースに作成
-        const newTask = await taskService.createTask({
-          text: taskInfo.title,
-          channel: event.channel,
-          messageTs: event.ts,
-          createdBy: event.user,
-          assignee: event.user, // メンションしたユーザーを担当者に
-          dueDate: taskInfo.dueDate ? new Date(taskInfo.dueDate) : null,
-          priority: taskInfo.priority
-        });
-
-        // タスク作成完了を通知
-        let notificationText = `✅ タスクを自動作成しました！\n\n*タスクID:* ${newTask.task_id}\n*内容:* ${taskInfo.title}\n*担当:* <@${event.user}>\n*優先度:* ${getPriorityEmoji(taskInfo.priority)} ${getPriorityLabel(taskInfo.priority)}`;
-
-        if (taskInfo.dueDate) {
-          const dueDateStr = new Date(taskInfo.dueDate).toLocaleDateString('ja-JP', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: 'Asia/Tokyo'
-          });
-          notificationText += `\n*期限:* ${dueDateStr}`;
-        }
-
-        notificationText += `\n\n💡 AI判定: ${analysis.reason} (確信度: ${analysis.confidence}%)`;
-
-        await client.chat.postMessage({
-          channel: event.channel,
-          thread_ts: event.ts,
-          text: notificationText
-        });
-
-        logger.task(`タスク自動作成: ${newTask.task_id} (AI判定, 確信度: ${analysis.confidence}%)`);
-        return;
-      } else {
-        console.log(`❌ タスクではないと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
-      }
+    // AI機能が有効な場合は意図判定を実行
+    if (!isAIEnabled) {
+      // AI無効の場合はヘルプを表示
+      await showHelpMessage(client, event);
+      return;
     }
 
-    // タスクではない、またはAI機能が無効な場合はヘルプメッセージを表示
-    await unrepliedService.recordMention({
-      channel: event.channel,
-      messageTs: event.ts,
-      mentionedUser: event.user,
-      mentionerUser: event.user,
-      text: event.text
-    });
+    // ========================================
+    // Step 1: 意図判定
+    // ========================================
+    const intentService = require('./src/services/intentService');
+    const intentResult = await intentService.detectIntent(cleanText);
 
-    await client.chat.postMessage({
-      channel: event.channel,
-      thread_ts: event.ts,
-      text: `こんにちは！サポ田さんです 👋\n\nタスク管理のお手伝いをします！\n• ✅ や :memo: のリアクションでタスク作成\n• \`/task-list\` でタスク一覧表示\n• \`/task-done [タスクID]\` でタスク完了\n• ⚡ショートカット「Create Task with Deadline」で期限付きタスク作成\n• 💡 @メンションでタスク依頼をすると自動でタスク化されます\n\n💡 このメッセージに24時間以上返信がない場合、自動的にタスク化されます。`
-    });
+    console.log(`🔍 意図判定結果: ${intentResult.intent} (確信度: ${intentResult.confidence}%)`);
+    console.log(`   理由: ${intentResult.reason}`);
+
+    // ========================================
+    // Step 2: 意図に応じて処理を分岐
+    // ========================================
+
+    // 2-1. タスク依頼
+    if (intentResult.intent === intentService.INTENTS.TASK_REQUEST) {
+      await handleTaskRequest(client, event, cleanText, intentResult);
+      return;
+    }
+
+    // 2-2. 情報検索
+    if (intentResult.intent === intentService.INTENTS.INFORMATION) {
+      await handleInformationRequest(client, event, cleanText, intentResult);
+      return;
+    }
+
+    // 2-3. リマインド設定（Phase 3で実装予定）
+    if (intentResult.intent === intentService.INTENTS.REMINDER_SETUP) {
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: `🔔 リマインド機能は現在開発中です！\n\nもうしばらくお待ちください 🙇`
+      });
+      return;
+    }
+
+    // 2-4. ヘルプ / その他
+    await showHelpMessage(client, event);
+
   } catch (error) {
-    console.error('メンション応答エラー:', error);
+    console.error('❌ メンション応答エラー:', error);
+    console.error('スタックトレース:', error.stack);
 
     // エラー時はユーザーに通知
     try {
@@ -508,6 +487,133 @@ app.event('app_mention', async ({ event, client }) => {
     }
   }
 });
+
+// ========================================
+// ヘルパー関数: タスク依頼処理
+// ========================================
+async function handleTaskRequest(client, event, cleanText, intentResult) {
+  console.log('📋 タスク依頼を処理中...');
+
+  if (!intentService.isConfident(intentResult, 70)) {
+    console.log(`⚠️  確信度が低いため、確認メッセージを表示します (${intentResult.confidence}%)`);
+    await client.chat.postMessage({
+      channel: event.channel,
+      thread_ts: event.ts,
+      text: `🤔 タスクとして記録しますか？\n\n内容: "${cleanText}"\n\n記録する場合は、このメッセージに ✅ をつけてください。`
+    });
+    return;
+  }
+
+  // タスク情報を抽出
+  const taskInfo = await aiService.extractTaskInfo(cleanText);
+
+  // タスクをデータベースに作成
+  const newTask = await taskService.createTask({
+    text: taskInfo.title,
+    channel: event.channel,
+    messageTs: event.ts,
+    createdBy: event.user,
+    assignee: event.user,
+    dueDate: taskInfo.dueDate ? new Date(taskInfo.dueDate) : null,
+    priority: taskInfo.priority
+  });
+
+  // タスク作成完了を通知
+  let notificationText = `✅ タスクを作成しました！\n\n*タスクID:* ${newTask.task_id}\n*内容:* ${taskInfo.title}\n*担当:* <@${event.user}>\n*優先度:* ${getPriorityEmoji(taskInfo.priority)} ${getPriorityLabel(taskInfo.priority)}`;
+
+  if (taskInfo.dueDate) {
+    const dueDateStr = new Date(taskInfo.dueDate).toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
+    notificationText += `\n*期限:* ${dueDateStr}`;
+  }
+
+  notificationText += `\n\n💡 ${intentResult.reason}`;
+
+  await client.chat.postMessage({
+    channel: event.channel,
+    thread_ts: event.ts,
+    text: notificationText
+  });
+
+  logger.task(`タスク作成: ${newTask.task_id} (意図判定)`);
+}
+
+// ========================================
+// ヘルパー関数: 情報検索処理
+// ========================================
+async function handleInformationRequest(client, event, cleanText, intentResult) {
+  console.log('🔍 情報検索を処理中...');
+
+  // 検索中メッセージを表示
+  await client.chat.postMessage({
+    channel: event.channel,
+    thread_ts: event.ts,
+    text: `🔍 検索中です...\n\n「${cleanText}」に関する情報を探しています。少々お待ちください。`
+  });
+
+  try {
+    const searchService = require('./src/services/searchService');
+
+    // Slack履歴を検索
+    const searchResults = await searchService.searchAcrossChannels(
+      event.user,
+      cleanText,
+      {
+        maxChannels: 10,
+        maxMessages: 50,
+        daysBack: 30
+      }
+    );
+
+    console.log(`📊 検索結果: ${searchResults.length}件`);
+
+    // AI回答を生成
+    const answerResult = await aiService.generateAnswerFromSearch(cleanText, searchResults);
+
+    // 回答を整形
+    let responseText = `📚 **回答**\n\n${answerResult.answer}\n\n`;
+
+    if (answerResult.sources && answerResult.sources.length > 0) {
+      responseText += `📍 **出典**\n`;
+      answerResult.sources.slice(0, 3).forEach((source, index) => {
+        responseText += `${index + 1}. #${source.channel} (${source.date})\n`;
+      });
+      responseText += `\n_確信度: ${answerResult.confidence}%_`;
+    }
+
+    await client.chat.postMessage({
+      channel: event.channel,
+      thread_ts: event.ts,
+      text: responseText
+    });
+
+    logger.info(`情報検索成功: "${cleanText}" (結果: ${searchResults.length}件)`);
+  } catch (error) {
+    console.error('❌ 情報検索エラー:', error);
+    await client.chat.postMessage({
+      channel: event.channel,
+      thread_ts: event.ts,
+      text: `❌ 検索中にエラーが発生しました。\n\nしばらくしてから再度お試しください。`
+    });
+  }
+}
+
+// ========================================
+// ヘルパー関数: ヘルプメッセージ表示
+// ========================================
+async function showHelpMessage(client, event) {
+  await client.chat.postMessage({
+    channel: event.channel,
+    thread_ts: event.ts,
+    text: `こんにちは！サポ田さんです 👋\n\n私にできること:\n\n📋 *タスク管理*\n• ✅ や :memo: のリアクションでタスク作成\n• \`/task-list\` でタスク一覧表示\n• \`/task-done [ID]\` でタスク完了\n• 「〇〇をお願いします」でタスク自動作成\n\n🔍 *情報検索*\n• 「先週の会議で決まったことは？」のような質問\n• 過去の会話履歴から情報を探して回答\n\n🔔 *リマインド* (開発中)\n• 「15時にリマインドして」でリマインド設定\n\n💡 質問や依頼があれば、@サポ田さん でメンションしてください！`
+  });
+}
 
 // ===============================
 // 6-2. 全メッセージ監視（メンション検知 + スレッド返信検知）
