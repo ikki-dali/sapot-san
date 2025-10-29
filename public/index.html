@@ -193,7 +193,8 @@
         // 未返信メンション一覧の読み込み
         async function loadUnrepliedMentions() {
             try {
-                const response = await fetch(`${API_URL}/unreplied?hours=2`);
+                // 時間フィルタなしで全ての未返信メンションを取得
+                const response = await fetch(`${API_URL}/unreplied?hours=9999`);
                 const result = await response.json();
 
                 if (result.success) {
