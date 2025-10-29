@@ -510,17 +510,62 @@ app.event('app_mention', async ({ event, client }) => {
 });
 
 // ===============================
-// 6-2. スレッド返信を検知（未返信状態を解除）
+// 6-2. 全メッセージ監視（メンション検知 + スレッド返信検知）
 // ===============================
-app.event('message', async ({ event }) => {
+app.event('message', async ({ event, client }) => {
   try {
-    // スレッド返信のみを対象（ボット自身の投稿は除外）
-    if (event.thread_ts && event.thread_ts !== event.ts && !event.bot_id) {
+    // ボット自身の投稿は除外
+    if (event.bot_id || event.subtype) {
+      return;
+    }
+
+    // スレッド返信の場合は未返信状態を解除
+    if (event.thread_ts && event.thread_ts !== event.ts) {
       await unrepliedService.markAsReplied(
         event.channel,
         event.thread_ts,
         event.user
       );
+    }
+
+    // メンションが含まれているかチェック
+    const mentionRegex = /<@([A-Z0-9]+)>/g;
+    const mentions = [...(event.text || '').matchAll(mentionRegex)];
+
+    if (mentions.length > 0) {
+      // メンションされたユーザーIDを抽出
+      const mentionedUsers = mentions.map(match => match[1]);
+
+      // ボット自身（サポ田さん）へのメンションは除外
+      const botUserId = (await client.auth.test()).user_id;
+      const nonBotMentions = mentionedUsers.filter(userId => userId !== botUserId);
+
+      // ボット以外へのメンションがある場合、AI分析
+      if (nonBotMentions.length > 0) {
+        console.log(`👀 メンション検出: ${nonBotMentions.length}件`, nonBotMentions);
+
+        // AI分析してタスク判定
+        const analysis = await unrepliedService.analyzeMentionAndRecord({
+          text: event.text,
+          channel: event.channel,
+          messageTs: event.ts,
+          mentionedUsers: nonBotMentions,
+          senderUser: event.user
+        }, isAIEnabled);
+
+        // タスクと判定された場合、確認通知を送信
+        if (analysis.isTask) {
+          const mentionList = nonBotMentions.map(id => `<@${id}>`).join(', ');
+
+          await client.chat.postMessage({
+            channel: event.channel,
+            thread_ts: event.ts,
+            text: `👀 このメッセージをタスク依頼として検知しました\n\n*対象:* ${mentionList}\n*確信度:* ${analysis.confidence}%\n*判定理由:* ${analysis.reason}\n\n⏰ 24時間以内に返信がない場合、リマインド通知を送信します。`
+          });
+
+          logger.task(`タスク依頼検知: ${nonBotMentions.length}名にメンション (確信度: ${analysis.confidence}%)`);
+        }
+      }
     }
   } catch (error) {
     console.error('メッセージ処理エラー:', error);

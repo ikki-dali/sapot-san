@@ -1,5 +1,6 @@
 const { supabase } = require('../db/connection');
 const taskService = require('./taskService');
+const aiService = require('./aiService');
 
 /**
  * メンションを記録
@@ -138,6 +139,49 @@ async function autoCreateTask(mention) {
 }
 
 /**
+ * 未返信メッセージをチェックしてリマインド通知を送信
+ * @param {Object} slackClient - Slack Boltのclientオブジェクト
+ * @param {number} hoursThreshold - 何時間以上未返信のものを対象にするか
+ * @returns {Promise<number>} リマインド送信件数
+ */
+async function checkAndRemindUnreplied(slackClient, hoursThreshold = 24) {
+  try {
+    console.log(`🔔 未返信リマインドチェック開始（${hoursThreshold}時間以上）`);
+
+    const unreplied = await getUnrepliedMentions(hoursThreshold);
+
+    if (unreplied.length === 0) {
+      console.log('✅ リマインド対象の未返信メッセージはありません');
+      return 0;
+    }
+
+    console.log(`📋 ${unreplied.length}件の未返信メッセージにリマインド送信`);
+
+    let sentCount = 0;
+
+    for (const mention of unreplied) {
+      try {
+        const hoursElapsed = Math.round(
+          (new Date() - new Date(mention.mentioned_at)) / (1000 * 60 * 60)
+        );
+
+        await sendReminderToMentionedUser(slackClient, mention, hoursElapsed);
+        sentCount++;
+      } catch (remindError) {
+        console.error(`⚠️ リマインド送信失敗 (ID: ${mention.id}):`, remindError.message);
+        // 次のメンションの処理を継続
+      }
+    }
+
+    console.log(`✅ 未返信リマインド完了: ${sentCount}件送信`);
+    return sentCount;
+  } catch (error) {
+    console.error('❌ 未返信リマインドエラー:', error);
+    return 0;
+  }
+}
+
+/**
  * 未返信メッセージを定期チェックして自動タスク化
  * @param {Object} slackClient - Slack Boltのclientオブジェクト
  * @param {number} hoursThreshold - 何時間以上未返信のものを対象にするか
@@ -232,11 +276,103 @@ async function getUnrepliedStats() {
   }
 }
 
+/**
+ * メンションメッセージをAI分析して、タスクと判定されたら記録
+ * @param {Object} messageData - メッセージデータ
+ * @param {boolean} isAIEnabled - AI機能が有効かどうか
+ * @returns {Promise<Object|null>} 分析結果と記録結果
+ */
+async function analyzeMentionAndRecord(messageData, isAIEnabled) {
+  try {
+    const { text, channel, messageTs, mentionedUsers, senderUser } = messageData;
+
+    // メンション部分を削除してクリーンなテキストを取得
+    const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
+
+    if (!cleanText || cleanText.length === 0) {
+      return { isTask: false, reason: 'テキストが空です' };
+    }
+
+    // AI機能が有効な場合はタスク判定
+    if (isAIEnabled && process.env.AI_AUTO_TASK_ENABLED === 'true') {
+      console.log('🤖 メンションメッセージをAI分析:', cleanText);
+
+      // タスクかどうかを判定
+      const analysis = await aiService.analyzeTaskRequest(cleanText);
+
+      // 確信度が70%以上の場合、タスクとして記録
+      if (analysis.isTask && analysis.confidence >= 70) {
+        console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
+
+        // メンションされた各ユーザーに対して記録
+        const recordedMentions = [];
+        for (const mentionedUser of mentionedUsers) {
+          const recorded = await recordMention({
+            channel,
+            messageTs,
+            mentionedUser,
+            mentionerUser: senderUser,
+            text: cleanText
+          });
+
+          if (recorded) {
+            recordedMentions.push(recorded);
+          }
+        }
+
+        return {
+          isTask: true,
+          confidence: analysis.confidence,
+          reason: analysis.reason,
+          mentionedUsers,
+          recordedCount: recordedMentions.length
+        };
+      } else {
+        console.log(`❌ タスクではないと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
+        return {
+          isTask: false,
+          confidence: analysis.confidence,
+          reason: analysis.reason
+        };
+      }
+    }
+
+    return { isTask: false, reason: 'AI機能が無効です' };
+  } catch (error) {
+    console.error('❌ メンション分析エラー:', error.message);
+    return { isTask: false, reason: `エラー: ${error.message}` };
+  }
+}
+
+/**
+ * 未返信メッセージに対してリマインド通知を送信
+ * @param {Object} slackClient - Slack Boltのclientオブジェクト
+ * @param {Object} mention - メンションオブジェクト
+ * @param {number} hoursElapsed - 経過時間
+ */
+async function sendReminderToMentionedUser(slackClient, mention, hoursElapsed) {
+  try {
+    await slackClient.chat.postMessage({
+      channel: mention.channel,
+      text: `<@${mention.mentioned_user}> さん\n\n⏰ *${hoursElapsed}時間前のメンションに未返信です*\n\n> ${mention.message_text}\n\nこのメッセージへの対応をお願いします。\n完了したら、このスレッドに返信してください。`,
+      thread_ts: mention.message_ts
+    });
+
+    console.log(`📨 リマインド送信: <@${mention.mentioned_user}> (${hoursElapsed}時間経過)`);
+  } catch (error) {
+    console.error('❌ リマインド送信エラー:', error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   recordMention,
   markAsReplied,
   getUnrepliedMentions,
   autoCreateTask,
+  checkAndRemindUnreplied,
   checkAndAutoTaskUnreplied,
-  getUnrepliedStats
+  getUnrepliedStats,
+  analyzeMentionAndRecord,
+  sendReminderToMentionedUser
 };
