@@ -22,6 +22,22 @@ async function detectIntent(text) {
   try {
     console.log('🔍 意図判定開始:', text);
 
+    // 事前チェック: リマインド関連キーワードがあれば強制的にreminder_setup
+    const reminderKeywords = ['リマインド', 'りまいんど', 'アラート', '通知して', '知らせて'];
+    const lowerText = text.toLowerCase();
+
+    for (const keyword of reminderKeywords) {
+      if (lowerText.includes(keyword.toLowerCase())) {
+        console.log(`🔔 キーワード "${keyword}" を検出 → reminder_setup に強制判定`);
+        return {
+          intent: INTENTS.REMINDER_SETUP,
+          confidence: 100,
+          reason: `リマインドキーワード「${keyword}」が検出されたため`,
+          originalText: text
+        };
+      }
+    }
+
     // OpenAI Function Calling を使用して意図を判定
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
