@@ -133,7 +133,10 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:3000/api';
+        // 環境に応じてAPI URLを自動設定
+        const API_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:3000/api'
+            : '/api';
 
         // 現在時刻の更新
         function updateTime() {

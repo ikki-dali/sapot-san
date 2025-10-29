@@ -78,21 +78,24 @@ app.use((err, req, res, next) => {
   });
 });
 
-// サーバー起動
-const server = app.listen(PORT, () => {
-  logger.success(`APIサーバーが起動しました`, {
-    port: PORT,
-    url: `http://localhost:${PORT}`
+// Vercel環境以外でのみサーバー起動
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const server = app.listen(PORT, () => {
+    logger.success(`APIサーバーが起動しました`, {
+      port: PORT,
+      url: `http://localhost:${PORT}`
+    });
   });
-});
 
-// グレースフルシャットダウン
-process.on('SIGTERM', () => {
-  logger.info('SIGTERMシグナルを受信しました。APIサーバーを停止します。');
-  server.close(() => {
-    logger.info('APIサーバーが正常に停止しました');
-    process.exit(0);
+  // グレースフルシャットダウン
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERMシグナルを受信しました。APIサーバーを停止します。');
+    server.close(() => {
+      logger.info('APIサーバーが正常に停止しました');
+      process.exit(0);
+    });
   });
-});
+}
 
-module.exports = app; // テスト用にエクスポート
+// Vercel用にエクスポート
+module.exports = app;
