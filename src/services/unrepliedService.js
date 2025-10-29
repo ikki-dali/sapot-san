@@ -290,58 +290,92 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
   try {
     const { text, channel, messageTs, mentionedUsers, senderUser } = messageData;
 
-    // メンション部分を削除してクリーンなテキストを取得
-    const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
+    // メッセージを行ごとに分割
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-    if (!cleanText || cleanText.length === 0) {
-      return { isTask: false, reason: 'テキストが空です' };
-    }
+    console.log(`📝 メッセージを${lines.length}行に分割しました`);
 
-    // AI機能が有効な場合はタスク判定
-    if (isAIEnabled && process.env.AI_AUTO_TASK_ENABLED === 'true') {
-      console.log('🤖 メンションメッセージをAI分析:', cleanText);
+    let totalRecorded = 0;
+    const allAnalyses = [];
 
-      // タスクかどうかを判定
-      const analysis = await aiService.analyzeTaskRequest(cleanText);
+    // 各行を個別に処理
+    for (const line of lines) {
+      // この行に含まれるメンションを抽出
+      const mentionRegex = /<@([A-Z0-9]+)>/g;
+      const lineMentions = [...line.matchAll(mentionRegex)].map(match => match[1]);
 
-      // 確信度が70%以上の場合、タスクとして記録
-      if (analysis.isTask && analysis.confidence >= 70) {
-        console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
+      if (lineMentions.length === 0) {
+        // メンションがない行はスキップ
+        continue;
+      }
 
-        // メンションされた各ユーザーに対して記録
-        const recordedMentions = [];
-        for (const mentionedUser of mentionedUsers) {
-          const recorded = await recordMention({
-            channel,
-            messageTs,
-            mentionedUser,
-            mentionerUser: senderUser,
-            text: cleanText
-          });
+      // メンション部分を削除してクリーンなテキストを取得
+      const cleanText = line.replace(/<@[A-Z0-9]+>/g, '').trim();
 
-          if (recorded) {
-            recordedMentions.push(recorded);
+      if (!cleanText || cleanText.length === 0) {
+        console.log('⚠️ メンション以外のテキストがない行をスキップ');
+        continue;
+      }
+
+      console.log(`🔍 行を分析: "${cleanText}" (対象: ${lineMentions.length}人)`);
+
+      // AI機能が有効な場合はタスク判定
+      if (isAIEnabled && process.env.AI_AUTO_TASK_ENABLED === 'true') {
+        // タスクかどうかを判定
+        const analysis = await aiService.analyzeTaskRequest(cleanText);
+
+        // 確信度が70%以上の場合、タスクとして記録
+        if (analysis.isTask && analysis.confidence >= 70) {
+          console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
+
+          // この行でメンションされた各ユーザーに対して記録
+          for (const mentionedUser of lineMentions) {
+            const recorded = await recordMention({
+              channel,
+              messageTs,
+              mentionedUser,
+              mentionerUser: senderUser,
+              text: cleanText // この行のテキストのみ
+            });
+
+            if (recorded) {
+              totalRecorded++;
+              console.log(`📝 記録完了: ${mentionedUser} <- "${cleanText}"`);
+            }
           }
-        }
 
-        return {
-          isTask: true,
-          confidence: analysis.confidence,
-          reason: analysis.reason,
-          mentionedUsers,
-          recordedCount: recordedMentions.length
-        };
-      } else {
-        console.log(`❌ タスクではないと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
-        return {
-          isTask: false,
-          confidence: analysis.confidence,
-          reason: analysis.reason
-        };
+          allAnalyses.push({
+            line: cleanText,
+            isTask: true,
+            confidence: analysis.confidence,
+            mentionCount: lineMentions.length
+          });
+        } else {
+          console.log(`❌ タスクではないと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
+          allAnalyses.push({
+            line: cleanText,
+            isTask: false,
+            confidence: analysis.confidence,
+            reason: analysis.reason
+          });
+        }
       }
     }
 
-    return { isTask: false, reason: 'AI機能が無効です' };
+    if (totalRecorded > 0) {
+      return {
+        isTask: true,
+        recordedCount: totalRecorded,
+        analyses: allAnalyses,
+        mentionedUsers
+      };
+    }
+
+    return {
+      isTask: false,
+      reason: 'タスクと判定された行がありませんでした',
+      analyses: allAnalyses
+    };
   } catch (error) {
     console.error('❌ メンション分析エラー:', error.message);
     return { isTask: false, reason: `エラー: ${error.message}` };
