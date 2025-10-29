@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サポ田さん - ダッシュボード</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .priority-high { border-left: 4px solid #dc3545; }
+        .priority-medium { border-left: 4px solid #ffc107; }
+        .priority-low { border-left: 4px solid #28a745; }
+        .task-item {
+            transition: all 0.2s;
+        }
+        .task-item:hover {
+            background-color: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-check2-circle"></i> サポ田さん - タスク管理ダッシュボード
+            </span>
+            <div class="d-flex align-items-center gap-3">
+                <a href="calendar-settings.html" class="btn btn-light btn-sm">
+                    <i class="bi bi-calendar3"></i> カレンダー設定
+                </a>
+                <span class="text-white">
+                    <i class="bi bi-clock"></i> <span id="currentTime"></span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 統計カード -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card text-white bg-primary">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-list-task"></i> オープン</h5>
+                        <h2 id="openTasks">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-white bg-success">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-check-circle"></i> 完了</h5>
+                        <h2 id="completedTasks">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-white bg-warning">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-alarm"></i> 期限近い</h5>
+                        <h2 id="upcomingTasks">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-white bg-info">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-bar-chart"></i> 合計</h5>
+                        <h2 id="totalTasks">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 優先度別 -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h6 class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> 高優先度</h6>
+                        <h3 id="highPriority">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h6 class="text-warning"><i class="bi bi-dash-circle-fill"></i> 中優先度</h6>
+                        <h3 id="mediumPriority">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> 低優先度</h6>
+                        <h3 id="lowPriority">-</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- タスク一覧 -->
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-ul"></i> オープンタスク一覧</h5>
+                    <button class="btn btn-sm btn-primary" onclick="loadTasks()">
+                        <i class="bi bi-arrow-clockwise"></i> 更新
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="taskList">
+                    <div class="text-center text-muted">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+
+        // 現在時刻の更新
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('ja-JP');
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // 統計情報の読み込み
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/stats/dashboard`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const { tasks, priority } = result.data;
+
+                    document.getElementById('openTasks').textContent = tasks.open;
+                    document.getElementById('completedTasks').textContent = tasks.completed;
+                    document.getElementById('upcomingTasks').textContent = tasks.upcoming;
+                    document.getElementById('totalTasks').textContent = tasks.total;
+
+                    document.getElementById('highPriority').textContent = priority.high;
+                    document.getElementById('mediumPriority').textContent = priority.medium;
+                    document.getElementById('lowPriority').textContent = priority.low;
+                }
+            } catch (error) {
+                console.error('統計情報の読み込みエラー:', error);
+            }
+        }
+
+        // タスク一覧の読み込み
+        async function loadTasks() {
+            try {
+                const response = await fetch(`${API_URL}/tasks?status=open`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const taskList = document.getElementById('taskList');
+
+                    if (result.data.length === 0) {
+                        taskList.innerHTML = '<p class="text-muted text-center">タスクはありません</p>';
+                        return;
+                    }
+
+                    taskList.innerHTML = result.data.map(task => {
+                        const priorityClass = task.priority === 1 ? 'priority-high' :
+                                            task.priority === 2 ? 'priority-medium' : 'priority-low';
+                        const priorityLabel = task.priority === 1 ? '高' :
+                                            task.priority === 2 ? '中' : '低';
+                        const priorityColor = task.priority === 1 ? 'danger' :
+                                            task.priority === 2 ? 'warning' : 'success';
+
+                        const dueDate = task.due_date ? new Date(task.due_date).toLocaleString('ja-JP') : '期限なし';
+                        const createdAt = new Date(task.created_at).toLocaleString('ja-JP');
+
+                        return `
+                            <div class="card mb-2 task-item ${priorityClass}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">${escapeHtml(task.text)}</h6>
+                                            <small class="text-muted">
+                                                <i class="bi bi-calendar"></i> 作成: ${createdAt} |
+                                                <i class="bi bi-alarm"></i> 期限: ${dueDate} |
+                                                <i class="bi bi-person"></i> 担当: ${escapeHtml(task.assignee_name || task.assignee)}
+                                            </small>
+                                        </div>
+                                        <div class="ms-3">
+                                            <span class="badge bg-${priorityColor}">優先度: ${priorityLabel}</span>
+                                            <button class="btn btn-sm btn-success ms-2" onclick="completeTask('${task.task_id}')">
+                                                <i class="bi bi-check"></i> 完了
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('タスク一覧の読み込みエラー:', error);
+                document.getElementById('taskList').innerHTML =
+                    '<p class="text-danger text-center">読み込みエラー</p>';
+            }
+        }
+
+        // タスク完了
+        async function completeTask(taskId) {
+            if (!confirm('このタスクを完了しますか？')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/tasks/${taskId}/complete`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('タスクを完了しました！');
+                    loadTasks();
+                    loadStats();
+                } else {
+                    alert('エラー: ' + result.error);
+                }
+            } catch (error) {
+                console.error('タスク完了エラー:', error);
+                alert('タスクの完了に失敗しました');
+            }
+        }
+
+        // HTMLエスケープ
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 初回読み込み
+        loadStats();
+        loadTasks();
+
+        // 30秒ごとに自動更新
+        setInterval(() => {
+            loadStats();
+            loadTasks();
+        }, 30000);
+    </script>
+</body>
+</html>
