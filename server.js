@@ -9,6 +9,7 @@ const statsRoutes = require('./src/api/routes/statsRoutes');
 const calendarRoutes = require('./src/api/routes/calendarRoutes');
 const unrepliedRoutes = require('./src/api/routes/unrepliedRoutes');
 const tagRoutes = require('./src/api/routes/tagRoutes');
+const authRoutes = require('./src/api/routes/authRoutes');
 
 const app = express();
 const PORT = process.env.API_PORT || 3000;
@@ -40,6 +41,7 @@ app.get('/health', (req, res) => {
 });
 
 // APIルート
+app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/calendar', calendarRoutes);
@@ -54,6 +56,7 @@ app.get('/api', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      auth: '/api/auth',
       tasks: '/api/tasks',
       stats: '/api/stats',
       calendar: '/api/calendar',

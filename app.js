@@ -653,13 +653,28 @@ app.event('message', async ({ event, client }) => {
         if (analysis.isTask) {
           const mentionList = nonBotMentions.map(id => `<@${id}>`).join(', ');
 
+          // 分析結果の詳細を取得（複数行ある場合は統合）
+          let detailText = '';
+          if (analysis.analyses && analysis.analyses.length > 0) {
+            // タスクと判定された行のみ抽出
+            const taskAnalyses = analysis.analyses.filter(a => a.isTask);
+
+            if (taskAnalyses.length > 0) {
+              // 平均確信度を計算
+              const avgConfidence = Math.round(
+                taskAnalyses.reduce((sum, a) => sum + a.confidence, 0) / taskAnalyses.length
+              );
+              detailText = `\n*確信度:* ${avgConfidence}%\n*検知件数:* ${analysis.recordedCount}件のタスク依頼`;
+            }
+          }
+
           await client.chat.postMessage({
             channel: event.channel,
             thread_ts: event.ts,
-            text: `👀 このメッセージをタスク依頼として検知しました\n\n*対象:* ${mentionList}\n*確信度:* ${analysis.confidence}%\n*判定理由:* ${analysis.reason}\n\n⏰ 2時間以内に返信がない場合、リマインド通知を送信します。`
+            text: `👀 このメッセージをタスク依頼として検知しました\n\n*対象:* ${mentionList}${detailText}\n\n⏰ 2時間以内に返信がない場合、リマインド通知を送信します。`
           });
 
-          logger.task(`タスク依頼検知: ${nonBotMentions.length}名にメンション (確信度: ${analysis.confidence}%)`);
+          logger.task(`タスク依頼検知: ${analysis.recordedCount}件のタスクを記録`);
           console.log('✅ タスク検知通知を送信しました');
         } else {
           console.log('❌ タスクではないと判定されました');
