@@ -36,8 +36,8 @@ const transports = [
   })
 ];
 
-// 本番環境ではファイルにも出力
-if (process.env.NODE_ENV === 'production') {
+// 本番環境ではファイルにも出力（Vercel以外）
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   // エラーログファイル
   transports.push(
     new winston.transports.File({
@@ -64,13 +64,13 @@ if (process.env.NODE_ENV === 'production') {
 const logger = winston.createLogger({
   level: logLevel,
   transports: transports,
-  // 未処理のエラーをキャッチ
-  exceptionHandlers: process.env.NODE_ENV === 'production' ? [
+  // 未処理のエラーをキャッチ（Vercel以外）
+  exceptionHandlers: (process.env.NODE_ENV === 'production' && !process.env.VERCEL) ? [
     new winston.transports.File({
       filename: path.join(__dirname, '../../logs/exceptions.log')
     })
   ] : [],
-  rejectionHandlers: process.env.NODE_ENV === 'production' ? [
+  rejectionHandlers: (process.env.NODE_ENV === 'production' && !process.env.VERCEL) ? [
     new winston.transports.File({
       filename: path.join(__dirname, '../../logs/rejections.log')
     })
