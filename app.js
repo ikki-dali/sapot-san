@@ -514,13 +514,30 @@ app.event('app_mention', async ({ event, client }) => {
 // ===============================
 app.event('message', async ({ event, client }) => {
   try {
-    // ボット自身の投稿は除外
-    if (event.bot_id || event.subtype) {
+    // デバッグログ：すべてのメッセージを記録
+    console.log('📨 メッセージ受信:', {
+      text: event.text?.substring(0, 50),
+      bot_id: event.bot_id,
+      subtype: event.subtype,
+      user: event.user
+    });
+
+    // ボット自身の投稿は除外（ただしsubtypeがない通常メッセージは許可）
+    if (event.bot_id) {
+      console.log('⏭️  ボットメッセージをスキップ');
+      return;
+    }
+
+    // 特定のsubtypeは除外（channel_join, message_deletedなど）
+    const excludedSubtypes = ['channel_join', 'channel_leave', 'message_deleted', 'message_changed'];
+    if (event.subtype && excludedSubtypes.includes(event.subtype)) {
+      console.log(`⏭️  サブタイプ ${event.subtype} をスキップ`);
       return;
     }
 
     // スレッド返信の場合は未返信状態を解除
     if (event.thread_ts && event.thread_ts !== event.ts) {
+      console.log('✅ スレッド返信を検知、未返信状態を解除');
       await unrepliedService.markAsReplied(
         event.channel,
         event.thread_ts,
@@ -528,11 +545,19 @@ app.event('message', async ({ event, client }) => {
       );
     }
 
+    // メッセージテキストがない場合はスキップ
+    if (!event.text) {
+      console.log('⏭️  テキストなしメッセージをスキップ');
+      return;
+    }
+
     // メンションが含まれているかチェック
     const mentionRegex = /<@([A-Z0-9]+)>/g;
-    const mentions = [...(event.text || '').matchAll(mentionRegex)];
+    const mentions = [...event.text.matchAll(mentionRegex)];
 
     if (mentions.length > 0) {
+      console.log(`👀 メンション検出: ${mentions.length}件`);
+
       // メンションされたユーザーIDを抽出
       const mentionedUsers = mentions.map(match => match[1]);
 
@@ -540,9 +565,11 @@ app.event('message', async ({ event, client }) => {
       const botUserId = (await client.auth.test()).user_id;
       const nonBotMentions = mentionedUsers.filter(userId => userId !== botUserId);
 
+      console.log(`🔍 ボット以外のメンション: ${nonBotMentions.length}件`, nonBotMentions);
+
       // ボット以外へのメンションがある場合、AI分析
       if (nonBotMentions.length > 0) {
-        console.log(`👀 メンション検出: ${nonBotMentions.length}件`, nonBotMentions);
+        console.log('🤖 AI分析を開始...');
 
         // AI分析してタスク判定
         const analysis = await unrepliedService.analyzeMentionAndRecord({
@@ -553,6 +580,8 @@ app.event('message', async ({ event, client }) => {
           senderUser: event.user
         }, isAIEnabled);
 
+        console.log('📊 AI分析結果:', analysis);
+
         // タスクと判定された場合、確認通知を送信
         if (analysis.isTask) {
           const mentionList = nonBotMentions.map(id => `<@${id}>`).join(', ');
@@ -560,15 +589,21 @@ app.event('message', async ({ event, client }) => {
           await client.chat.postMessage({
             channel: event.channel,
             thread_ts: event.ts,
-            text: `👀 このメッセージをタスク依頼として検知しました\n\n*対象:* ${mentionList}\n*確信度:* ${analysis.confidence}%\n*判定理由:* ${analysis.reason}\n\n⏰ 24時間以内に返信がない場合、リマインド通知を送信します。`
+            text: `👀 このメッセージをタスク依頼として検知しました\n\n*対象:* ${mentionList}\n*確信度:* ${analysis.confidence}%\n*判定理由:* ${analysis.reason}\n\n⏰ 2時間以内に返信がない場合、リマインド通知を送信します。`
           });
 
           logger.task(`タスク依頼検知: ${nonBotMentions.length}名にメンション (確信度: ${analysis.confidence}%)`);
+          console.log('✅ タスク検知通知を送信しました');
+        } else {
+          console.log('❌ タスクではないと判定されました');
         }
       }
+    } else {
+      console.log('⏭️  メンションなしメッセージをスキップ');
     }
   } catch (error) {
-    console.error('メッセージ処理エラー:', error);
+    console.error('❌ メッセージ処理エラー:', error);
+    console.error('スタックトレース:', error.stack);
   }
 });
 

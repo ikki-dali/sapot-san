@@ -265,18 +265,10 @@ function startReminderJobs(slackClient) {
     timezone: 'Asia/Tokyo'
   });
 
-  // 毎日午前10時に未返信メッセージリマインド送信（24時間以上）
-  cron.schedule('0 10 * * *', () => {
-    console.log('🔔 [定期実行] 未返信メッセージリマインド送信（24時間経過）');
-    unrepliedService.checkAndRemindUnreplied(slackClient, 24);
-  }, {
-    timezone: 'Asia/Tokyo'
-  });
-
-  // 毎日午後14時に未返信メッセージ自動タスク化（48時間以上）
-  cron.schedule('0 14 * * *', () => {
-    console.log('🔔 [定期実行] 未返信メッセージ自動タスク化（48時間経過）');
-    unrepliedService.checkAndAutoTaskUnreplied(slackClient, 48);
+  // 30分ごとに未返信メッセージリマインド送信（2時間以上）
+  cron.schedule('*/30 * * * *', () => {
+    console.log('🔔 [定期実行] 未返信メッセージリマインド送信（2時間経過）');
+    unrepliedService.checkAndRemindUnreplied(slackClient, 2);
   }, {
     timezone: 'Asia/Tokyo'
   });
@@ -304,16 +296,14 @@ function startReminderJobs(slackClient) {
     console.log('✅ リマインダーcronジョブを開始しました（Notion連携有効）');
     console.log('  - 毎時 0分: 2-3時間以内の期限タスク通知');
     console.log('  - 毎日 9:00: 24時間以内の期限タスク通知');
-    console.log('  - 毎日 10:00: 未返信メッセージリマインド送信（24時間経過）');
-    console.log('  - 毎日 14:00: 未返信メッセージ自動タスク化（48時間経過）');
+    console.log('  - 30分ごと: 未返信メッセージリマインド送信（2時間経過）');
     console.log('  - 毎日 18:00: 期限切れタスク通知');
     console.log('  - 15分ごと: Notion双方向同期');
   } else {
     console.log('✅ リマインダーcronジョブを開始しました');
     console.log('  - 毎時 0分: 2-3時間以内の期限タスク通知');
     console.log('  - 毎日 9:00: 24時間以内の期限タスク通知');
-    console.log('  - 毎日 10:00: 未返信メッセージリマインド送信（24時間経過）');
-    console.log('  - 毎日 14:00: 未返信メッセージ自動タスク化（48時間経過）');
+    console.log('  - 30分ごと: 未返信メッセージリマインド送信（2時間経過）');
     console.log('  - 毎日 18:00: 期限切れタスク通知');
     console.log('  ℹ️ Notion連携は無効です（.envでNOTION_API_KEYとNOTION_DATABASE_IDを設定してください）');
   }
