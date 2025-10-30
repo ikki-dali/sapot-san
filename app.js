@@ -507,8 +507,24 @@ async function handleTaskRequest(client, event, cleanText, intentResult) {
     return;
   }
 
+  // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
+  let userPriority = null;
+  if (cleanText.includes('🔴')) {
+    userPriority = 1; // 高
+    console.log('👤 ユーザーが優先度を指定: 🔴 高');
+  } else if (cleanText.includes('🟡')) {
+    userPriority = 2; // 中
+    console.log('👤 ユーザーが優先度を指定: 🟡 中');
+  } else if (cleanText.includes('🟢')) {
+    userPriority = 3; // 低
+    console.log('👤 ユーザーが優先度を指定: 🟢 低');
+  }
+
   // タスク情報を抽出
   const taskInfo = await aiService.extractTaskInfo(cleanText);
+
+  // ユーザーが絵文字で指定した優先度を優先、なければAI判定を使用
+  const finalPriority = userPriority !== null ? userPriority : taskInfo.priority;
 
   // タスクをデータベースに作成
   const newTask = await taskService.createTask({
@@ -518,11 +534,11 @@ async function handleTaskRequest(client, event, cleanText, intentResult) {
     createdBy: event.user,
     assignee: event.user,
     dueDate: taskInfo.dueDate ? new Date(taskInfo.dueDate) : null,
-    priority: taskInfo.priority
+    priority: finalPriority
   });
 
   // タスク作成完了を通知
-  let notificationText = `✅ タスクを作成しました！\n\n*タスクID:* ${newTask.task_id}\n*内容:* ${taskInfo.title}\n*担当:* <@${event.user}>\n*優先度:* ${getPriorityEmoji(taskInfo.priority)} ${getPriorityLabel(taskInfo.priority)}`;
+  let notificationText = `✅ タスクを作成しました！\n\n*タスクID:* ${newTask.task_id}\n*内容:* ${taskInfo.title}\n*担当:* <@${event.user}>\n*優先度:* ${getPriorityEmoji(finalPriority)} ${getPriorityLabel(finalPriority)}`;
 
   if (taskInfo.dueDate) {
     const dueDateStr = new Date(taskInfo.dueDate).toLocaleDateString('ja-JP', {
@@ -1132,6 +1148,46 @@ app.shortcut('create_task_modal', async ({ shortcut, ack, client }) => {
           },
           {
             type: 'input',
+            block_id: 'priority',
+            optional: true,
+            label: {
+              type: 'plain_text',
+              text: '優先度'
+            },
+            element: {
+              type: 'static_select',
+              action_id: 'priority_select',
+              placeholder: {
+                type: 'plain_text',
+                text: '優先度を選択（任意・未選択時はAI判定）'
+              },
+              options: [
+                {
+                  text: {
+                    type: 'plain_text',
+                    text: '🔴 高 - 緊急・重要なタスク'
+                  },
+                  value: '1'
+                },
+                {
+                  text: {
+                    type: 'plain_text',
+                    text: '🟡 中 - 通常のタスク'
+                  },
+                  value: '2'
+                },
+                {
+                  text: {
+                    type: 'plain_text',
+                    text: '🟢 低 - 余裕があればやるタスク'
+                  },
+                  value: '3'
+                }
+              ]
+            }
+          },
+          {
+            type: 'input',
             block_id: 'channel',
             label: {
               type: 'plain_text',
@@ -1170,6 +1226,7 @@ app.view('task_modal_submit', async ({ ack, body, view, client }) => {
     const channel = values.channel.channel_select.selected_channel;
     const dueDate = values.due_date.date_select.selected_date; // YYYY-MM-DD
     const dueTime = values.due_time.time_select?.selected_time; // HH:MM
+    const selectedPriority = values.priority.priority_select?.selected_option?.value; // 優先度（任意）
 
     // 期限日時を結合（タイムゾーン考慮）
     let dueDateTimestamp = null;
@@ -1187,7 +1244,12 @@ app.view('task_modal_submit', async ({ ack, body, view, client }) => {
     let formattedText = taskText;
     let priority = 2; // デフォルト: 中優先度
 
-    if (isAIEnabled) {
+    // ユーザーが優先度を選択している場合はそれを使用
+    if (selectedPriority) {
+      priority = parseInt(selectedPriority);
+      console.log(`👤 ユーザーが優先度を選択: ${getPriorityLabel(priority)}`);
+    } else if (isAIEnabled) {
+      // 優先度が選択されていない場合、AI判定を実行
       try {
         // タスクテキストを整形
         if (process.env.AI_FORMAT_ENABLED === 'true') {
@@ -1197,7 +1259,7 @@ app.view('task_modal_submit', async ({ ack, body, view, client }) => {
 
         // 優先度を判定
         if (process.env.AI_PRIORITY_ENABLED === 'true') {
-          console.log('🤖 優先度判定を開始');
+          console.log('🤖 優先度判定を開始（ユーザー未選択のため）');
           priority = await aiService.determinePriority(formattedText, dueDateTimestamp);
         }
       } catch (aiError) {
