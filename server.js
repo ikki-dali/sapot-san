@@ -13,7 +13,7 @@ const authRoutes = require('./src/api/routes/authRoutes');
 const googleCalendarOAuthRoutes = require('./src/api/routes/googleCalendarOAuthRoutes');
 
 const app = express();
-const PORT = process.env.API_PORT || 3000;
+const PORT = process.env.PORT || process.env.API_PORT || 3000;
 
 // ミドルウェア
 app.use(cors()); // CORS有効化
