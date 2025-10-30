@@ -508,6 +508,9 @@ async function handleTaskRequest(client, event, cleanText, intentResult) {
   }
 
   // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
+  console.log(`🔍 優先度検出デバッグ: cleanText = "${cleanText}"`);
+  console.log(`🔍 🔴含む? ${cleanText.includes('🔴')}, 🟡含む? ${cleanText.includes('🟡')}, 🟢含む? ${cleanText.includes('🟢')}`);
+
   let userPriority = null;
   if (cleanText.includes('🔴')) {
     userPriority = 1; // 高
