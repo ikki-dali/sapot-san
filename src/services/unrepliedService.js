@@ -1,5 +1,5 @@
 const { supabase } = require('../db/connection');
-const taskService = require('./taskService');
+// taskServiceは循環依存を避けるため、使用箇所で遅延読み込み
 const aiService = require('./aiService');
 
 /**
@@ -111,6 +111,9 @@ async function getUnrepliedMentions(hoursThreshold = 24) {
  */
 async function autoCreateTask(mention) {
   try {
+    // 循環依存を避けるため、ここで遅延読み込み
+    const taskService = require('./taskService');
+
     // タスクを作成
     const newTask = await taskService.createTask({
       text: `【未返信】${mention.message_text}`,

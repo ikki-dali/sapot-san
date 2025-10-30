@@ -553,58 +553,136 @@ async function handleTaskRequest(client, event, cleanText, intentResult) {
 async function handleInformationRequest(client, event, cleanText, intentResult) {
   console.log('🔍 情報検索を処理中...');
 
-  // 検索中メッセージを表示
-  await client.chat.postMessage({
-    channel: event.channel,
-    thread_ts: event.ts,
-    text: `🔍 検索中です...\n\n「${cleanText}」に関する情報を探しています。少々お待ちください。`
-  });
-
   try {
-    const searchService = require('./src/services/searchService');
+    // ステップ1: 質問の種類を判定（一般的な質問 vs Slack固有の質問）
+    const needsSlackSearch = await determineIfSlackSearchNeeded(cleanText);
 
-    // Slack履歴を検索
-    const searchResults = await searchService.searchAcrossChannels(
-      event.user,
-      cleanText,
-      {
-        maxChannels: 10,
-        maxMessages: 50,
-        daysBack: 30
-      }
-    );
+    if (needsSlackSearch) {
+      // Slack固有の質問 → 履歴検索を実行
+      console.log('📚 Slack履歴検索が必要と判断');
 
-    console.log(`📊 検索結果: ${searchResults.length}件`);
-
-    // AI回答を生成
-    const answerResult = await aiService.generateAnswerFromSearch(cleanText, searchResults);
-
-    // 回答を整形
-    let responseText = `📚 **回答**\n\n${answerResult.answer}\n\n`;
-
-    if (answerResult.sources && answerResult.sources.length > 0) {
-      responseText += `📍 **出典**\n`;
-      answerResult.sources.slice(0, 3).forEach((source, index) => {
-        responseText += `${index + 1}. #${source.channel} (${source.date})\n`;
+      // 検索中メッセージを表示
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: `🔍 Slack履歴を検索中です...\n\n「${cleanText}」に関する過去の会話を探しています。`
       });
-      responseText += `\n_確信度: ${answerResult.confidence}%_`;
+
+      const searchService = require('./src/services/searchService');
+
+      // Slack履歴を検索
+      const searchResults = await searchService.searchAcrossChannels(
+        event.user,
+        cleanText,
+        {
+          maxChannels: 10,
+          maxMessages: 50,
+          daysBack: 30
+        }
+      );
+
+      console.log(`📊 検索結果: ${searchResults.length}件`);
+
+      // AI回答を生成
+      const answerResult = await aiService.generateAnswerFromSearch(cleanText, searchResults);
+
+      // 回答を整形
+      let responseText = `📚 **回答**\n\n${answerResult.answer}\n\n`;
+
+      if (answerResult.sources && answerResult.sources.length > 0) {
+        responseText += `📍 **出典**\n`;
+        answerResult.sources.slice(0, 3).forEach((source, index) => {
+          responseText += `${index + 1}. #${source.channel} (${source.date})\n`;
+        });
+        responseText += `\n_確信度: ${answerResult.confidence}%_`;
+      }
+
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: responseText
+      });
+
+      logger.info(`Slack履歴検索成功: "${cleanText}" (結果: ${searchResults.length}件)`);
+    } else {
+      // 一般的な質問 → AIが直接回答
+      console.log('🤖 AIが直接回答');
+
+      // 考え中メッセージを表示
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: `💭 考え中です...\n\n「${cleanText}」`
+      });
+
+      // スレッドの会話履歴を取得（コンテキストとして使用）
+      let threadMessages = [];
+      try {
+        const threadTs = event.thread_ts || event.ts;
+        threadMessages = await aiService.fetchThreadMessages(client, event.channel, threadTs);
+        console.log(`📚 スレッド履歴取得: ${threadMessages.length}件のメッセージ`);
+      } catch (error) {
+        console.warn('⚠️  スレッド履歴取得失敗（履歴なしで回答）:', error.message);
+      }
+
+      // AIに直接質問（スレッドコンテキスト付き）
+      const answer = await aiService.answerDirectQuestion(cleanText, threadMessages);
+
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: event.ts,
+        text: `💡 **回答**\n\n${answer}`
+      });
+
+      logger.info(`AI直接回答成功: "${cleanText}" (コンテキスト: ${threadMessages.length}件)`);
     }
-
-    await client.chat.postMessage({
-      channel: event.channel,
-      thread_ts: event.ts,
-      text: responseText
-    });
-
-    logger.info(`情報検索成功: "${cleanText}" (結果: ${searchResults.length}件)`);
   } catch (error) {
     console.error('❌ 情報検索エラー:', error);
     await client.chat.postMessage({
       channel: event.channel,
       thread_ts: event.ts,
-      text: `❌ 検索中にエラーが発生しました。\n\nしばらくしてから再度お試しください。`
+      text: `❌ エラーが発生しました。\n\nしばらくしてから再度お試しください。`
     });
   }
+}
+
+/**
+ * Slack履歴検索が必要かを判定
+ * @param {string} question - ユーザーの質問
+ * @returns {Promise<boolean>} true: Slack検索必要, false: AI直接回答
+ */
+async function determineIfSlackSearchNeeded(question) {
+  // Slack固有のキーワードパターン（過去の会話を参照する表現）
+  const slackRelatedPatterns = [
+    // 過去の会話を参照
+    /(誰|だれ)(が|に|は).*(言|い|話|依頼|頼|聞|教|伝|送|返)/i,
+    /(いつ|何時).*(言|い|話|依頼|頼|聞|教|伝|送|返|決)/i,
+    /(前|先週|昨日|最近|さっき|今日|この間).*(言|い|話|依頼|頼|聞|教|伝|送|返|決)/i,
+
+    // 過去の情報を求める
+    /(何を|なにを).*(依頼|頼|お願い|任せ|指示)/i,
+    /(どこ|どの).*(チャンネル|スレッド|会話)/i,
+
+    // 進捗・状況確認
+    /(進捗|状況|ステータス).*(は|どう|教えて)/i,
+    /(決まった|きまった).*(こと|内容)/i,
+
+    // 明示的なSlack参照
+    /(slack|スラック|履歴|会話|メッセージ|やりとり)/i,
+    /(チャンネル|スレッド)/i
+  ];
+
+  // いずれかのパターンにマッチすればSlack検索必要
+  for (const pattern of slackRelatedPatterns) {
+    if (pattern.test(question)) {
+      console.log(`🔍 Slack検索パターンにマッチ: ${pattern}`);
+      return true;
+    }
+  }
+
+  // マッチしなければAI直接回答
+  console.log('💡 一般的な質問と判定（AI直接回答）');
+  return false;
 }
 
 // ========================================

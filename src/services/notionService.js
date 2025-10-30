@@ -1,5 +1,5 @@
 const { Client } = require('@notionhq/client');
-const taskService = require('./taskService');
+// taskServiceは循環依存を避けるため、使用箇所で遅延読み込み
 const logger = require('../utils/logger');
 
 // Notionクライアントの初期化
@@ -180,6 +180,9 @@ async function syncNotionToTasks() {
 
     logger.info('Notionからタスク同期を開始');
 
+    // 循環依存を避けるため、ここで遅延読み込み
+    const taskService = require('./taskService');
+
     // Notionデータベースから全タスクを取得
     const response = await notion.databases.query({
       database_id: NOTION_DATABASE_ID
@@ -280,6 +283,9 @@ async function syncAllTasksToNotion() {
     }
 
     logger.info('全タスクをNotionに同期開始');
+
+    // 循環依存を避けるため、ここで遅延読み込み
+    const taskService = require('./taskService');
 
     // 全タスクを取得（オープンと完了両方）
     const [openTasks, completedTasks] = await Promise.all([

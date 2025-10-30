@@ -67,6 +67,26 @@
             font-weight: 500;
             margin-top: 10px;
         }
+        .loading-progress {
+            width: 300px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        .loading-progress-bar {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+        .loading-percentage {
+            font-size: 0.9rem;
+            margin-top: 8px;
+            opacity: 0.8;
+        }
 
         /* メインコンテンツは初期状態で非表示 */
         #mainContent {
@@ -84,7 +104,11 @@
         <div class="loading-content">
             <div class="loading-spinner"></div>
             <h2><i class="bi bi-check2-circle"></i> サポ田さん</h2>
-            <p class="loading-text">読み込み中...</p>
+            <p class="loading-text" id="loadingText">読み込み中...</p>
+            <div class="loading-progress">
+                <div class="loading-progress-bar" id="progressBar"></div>
+            </div>
+            <p class="loading-percentage" id="loadingPercentage">0%</p>
         </div>
     </div>
 
@@ -444,14 +468,29 @@
         // チャンネル一覧を読み込む
         async function loadChannels() {
             try {
+                console.log('📡 チャンネル一覧を取得中...');
                 const response = await fetch(`${API_URL}/tasks/channels`);
                 const result = await response.json();
+
+                console.log('📥 チャンネルAPI応答:', result);
 
                 if (result.success && result.data.length > 0) {
                     const taskChannelFilter = document.getElementById('taskChannelFilter');
                     const unrepliedChannelFilter = document.getElementById('unrepliedChannelFilter');
 
+                    // 既存のオプション(デフォルト以外)をクリア
+                    while (taskChannelFilter.options.length > 1) {
+                        taskChannelFilter.remove(1);
+                    }
+                    while (unrepliedChannelFilter.options.length > 1) {
+                        unrepliedChannelFilter.remove(1);
+                    }
+
+                    console.log(`📝 ${result.data.length}件のチャンネルを追加中...`);
+
                     result.data.forEach(channel => {
+                        console.log(`  - チャンネル: id=${channel.id}, name=${channel.name}`);
+
                         const option1 = document.createElement('option');
                         option1.value = channel.id;  // IDを値として使用
                         option1.textContent = `#${channel.name}`;  // 名前を表示
@@ -462,9 +501,13 @@
                         option2.textContent = `#${channel.name}`;  // 名前を表示
                         unrepliedChannelFilter.appendChild(option2);
                     });
+
+                    console.log('✅ チャンネル一覧の読み込み完了');
+                } else {
+                    console.warn('⚠️  チャンネルデータが空です');
                 }
             } catch (error) {
-                console.error('チャンネル一覧の読み込みエラー:', error);
+                console.error('❌ チャンネル一覧の読み込みエラー:', error);
             }
         }
 
@@ -669,6 +712,17 @@
             filterUnrepliedMentions();
         }
 
+        // プログレスバー更新
+        function updateProgress(percent, message) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('loadingPercentage');
+            const loadingText = document.getElementById('loadingText');
+
+            progressBar.style.width = percent + '%';
+            progressText.textContent = percent + '%';
+            if (message) loadingText.textContent = message;
+        }
+
         // ローディング画面を非表示にしてメインコンテンツを表示
         function hideLoading() {
             const loadingScreen = document.getElementById('loadingScreen');
@@ -689,17 +743,23 @@
 
             // 認証済みの場合のみデータを読み込む
             try {
-                // すべてのデータを並行して読み込む
-                await Promise.all([
-                    loadStats(),
-                    loadChannels(),
-                    loadTags(),
-                    loadTasks(),
-                    loadUnrepliedMentions()
-                ]);
+                // 【段階1】重要なデータを優先的に読み込み（統計 + タスク）
+                updateProgress(20, '統計情報を読み込み中...');
+                await loadStats();
 
-                // データ読み込み完了後にローディング画面を非表示
+                updateProgress(40, 'タスクを読み込み中...');
+                await loadTasks();
+
+                updateProgress(60, 'ダッシュボードを表示中...');
+
+                // 🚀 重要なデータが読み込めたのでローディング画面を消す
                 hideLoading();
+
+                // 【段階2】残りのデータをバックグラウンドで読み込み
+                loadChannels().then(() => updateProgress(80, ''));
+                loadTags().then(() => updateProgress(90, ''));
+                loadUnrepliedMentions().then(() => updateProgress(100, ''));
+
             } catch (error) {
                 console.error('データ読み込みエラー:', error);
                 // エラーが発生してもローディング画面は非表示にする

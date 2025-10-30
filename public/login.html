@@ -50,9 +50,57 @@
         .alert {
             border-radius: 10px;
         }
+
+        /* ローディング画面 */
+        #loadingScreen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0d6efd;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        #loadingScreen.active {
+            display: flex;
+        }
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
+    <!-- ローディング画面 -->
+    <div id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2><i class="bi bi-check2-circle"></i> サポ田さん</h2>
+            <p class="loading-text">ダッシュボードに移動中...</p>
+        </div>
+    </div>
+
     <div class="login-card">
         <div class="login-header">
             <h2><i class="bi bi-check2-circle"></i> サポ田さん</h2>
@@ -163,12 +211,11 @@
                     localStorage.setItem('authToken', result.data.token);
                     localStorage.setItem('userName', result.data.user.name);
 
-                    showAlert('success', 'ログインしました！リダイレクトしています...');
+                    // ローディング画面を表示
+                    document.getElementById('loadingScreen').classList.add('active');
 
-                    // 1秒後にダッシュボードにリダイレクト
-                    setTimeout(() => {
-                        window.location.href = 'index.html';
-                    }, 1000);
+                    // ダッシュボードにリダイレクト
+                    window.location.href = 'index.html';
                 } else {
                     showAlert('danger', result.error || 'ログインに失敗しました');
                     submitBtn.innerHTML = originalText;

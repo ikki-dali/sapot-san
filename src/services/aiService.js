@@ -509,6 +509,83 @@ async function parseReminderRequest(text, requestUserId) {
   }
 }
 
+/**
+ * 一般的な質問にAIが直接回答する（スレッドコンテキスト考慮）
+ * @param {string} question - ユーザーの質問
+ * @param {Array} threadMessages - スレッドの会話履歴 [{text, user, ts}, ...]（オプション）
+ * @returns {Promise<string>} AIの回答
+ */
+async function answerDirectQuestion(question, threadMessages = []) {
+  try {
+    console.log('🤖 AI直接回答を生成中...');
+
+    const messages = [
+      {
+        role: 'system',
+        content: `あなたは「サポ田さん」という名前のSlackボットです。
+チームのタスク管理やコミュニケーションをサポートする、頼れるアシスタントとして振る舞ってください。
+
+【回答スタイル】
+- 簡潔で分かりやすく（2-3段落程度）
+- 専門用語は避け、必要な場合は説明を添える
+- フレンドリーで親しみやすいトーン
+- 日本語で回答
+
+【スレッドコンテキスト】
+- このスレッド内の過去の会話を参照して、文脈に沿った回答をしてください
+- 前の質問への回答との一貫性を保つ
+- 同じ内容を繰り返し説明しない（「先ほどお伝えしたように〜」と参照する）
+
+【禁止事項】
+- Slack全体の履歴（このスレッド外の会話）には言及しない
+- 不確かな情報を断定しない
+- 長すぎる回答は避ける
+
+質問に対して、役立つ情報を提供してください。`
+      }
+    ];
+
+    // スレッドの会話履歴をコンテキストとして追加
+    if (threadMessages && threadMessages.length > 0) {
+      console.log(`📚 スレッドコンテキストを考慮: ${threadMessages.length}件のメッセージ`);
+
+      // 最新10件の会話を取得（長すぎるとトークン制限に引っかかる）
+      const recentMessages = threadMessages.slice(-10);
+
+      // 会話履歴をOpenAI形式に変換
+      recentMessages.forEach(msg => {
+        // ボット自身の発言はassistant、それ以外はuser
+        const role = msg.user === 'bot' || msg.bot_id ? 'assistant' : 'user';
+        messages.push({
+          role: role,
+          content: `${msg.user}: ${msg.text}`
+        });
+      });
+    }
+
+    // 最新の質問を追加
+    messages.push({
+      role: 'user',
+      content: question
+    });
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: messages,
+      max_tokens: 500,
+      temperature: 0.7
+    });
+
+    const answer = response.choices[0].message.content;
+    console.log(`✅ AI直接回答生成完了 (${answer.length}文字, コンテキスト: ${threadMessages.length}件)`);
+
+    return answer;
+  } catch (error) {
+    console.error('❌ AI直接回答エラー:', error.message);
+    return '申し訳ありません、回答の生成中にエラーが発生しました。もう一度お試しいただけますか？';
+  }
+}
+
 module.exports = {
   summarizeThread,
   determinePriority,
@@ -518,5 +595,6 @@ module.exports = {
   analyzeTaskRequest,
   extractTaskInfo,
   generateAnswerFromSearch,
-  parseReminderRequest
+  parseReminderRequest,
+  answerDirectQuestion
 };

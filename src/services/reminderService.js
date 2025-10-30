@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const taskService = require('./taskService');
+// taskServiceは循環依存を避けるため、使用箇所で遅延読み込み
 const { supabase } = require('../db/connection');
 const unrepliedService = require('./unrepliedService');
 const userReminderService = require('./userReminderService');
@@ -44,6 +44,9 @@ function recordReminder(taskId) {
  */
 async function checkUpcomingDeadlines(slackClient, hoursAhead = 24) {
   try {
+    // 循環依存を避けるため、ここで遅延読み込み
+    const taskService = require('./taskService');
+
     console.log(`⏰ 期限チェック開始（${hoursAhead}時間以内）`);
 
     // 期限が近いタスクを取得

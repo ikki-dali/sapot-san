@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
 const logger = require('../utils/logger');
-const taskService = require('./taskService');
+// taskServiceは循環依存を避けるため、使用箇所で遅延読み込み
 const { supabase } = require('../db/connection');
 
 // Google Calendar API クライアントの初期化
@@ -330,6 +330,8 @@ async function markEventAsCompleted(taskId) {
   try {
     if (!isEnabled) return null;
 
+    // 循環依存を避けるため、ここで遅延読み込み
+    const taskService = require('./taskService');
     const task = await taskService.getTaskById(taskId);
     if (!task) {
       logger.warn('タスクが見つかりません', { taskId });
@@ -358,6 +360,9 @@ async function syncAllTasksToCalendar() {
     }
 
     logger.info('全タスクをGoogle Calendarに同期開始');
+
+    // 循環依存を避けるため、ここで遅延読み込み
+    const taskService = require('./taskService');
 
     // 期限があるタスクのみ取得
     const allTasks = await taskService.getTasks({});
