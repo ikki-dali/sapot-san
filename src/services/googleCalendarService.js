@@ -1,85 +1,18 @@
+/**
+ * Google Calendar連携サービス（マルチユーザー対応）
+ * 各ユーザーのOAuthトークンを使用してカレンダーイベントを管理
+ */
 const { google } = require('googleapis');
 const logger = require('../utils/logger');
+const googleCalendarOAuthService = require('./googleCalendarOAuthService');
 // taskServiceは循環依存を避けるため、使用箇所で遅延読み込み
-const { supabase } = require('../db/connection');
-
-// Google Calendar API クライアントの初期化
-let calendar = null;
-let isEnabled = false;
 
 /**
- * Slack User IDからカレンダーIDを取得
- * @param {string} slackUserId - Slack User ID
- * @returns {Promise<string|null>} カレンダーIDまたはnull
- */
-async function getCalendarIdBySlackUserId(slackUserId) {
-  try {
-    const { data, error } = await supabase
-      .from('user_calendars')
-      .select('calendar_id')
-      .eq('slack_user_id', slackUserId)
-      .single();
-
-    if (error) {
-      logger.warn('カレンダーID取得失敗', {
-        slackUserId,
-        error: error.message
-      });
-      return null;
-    }
-
-    return data?.calendar_id || null;
-  } catch (error) {
-    logger.failure('カレンダーID取得エラー', {
-      slackUserId,
-      error: error.message
-    });
-    return null;
-  }
-}
-
-/**
- * Google Calendar APIを初期化
- */
-function initializeCalendar() {
-  try {
-    // Service Account認証情報の確認
-    if (!process.env.GOOGLE_CALENDAR_CREDENTIALS) {
-      logger.info('Google Calendar連携は無効です（GOOGLE_CALENDAR_CREDENTIALSが設定されていません）');
-      return false;
-    }
-
-    if (!process.env.GOOGLE_CALENDAR_ID) {
-      logger.info('Google Calendar連携は無効です（GOOGLE_CALENDAR_IDが設定されていません）');
-      return false;
-    }
-
-    // Service Accountの認証情報をパース
-    const credentials = JSON.parse(process.env.GOOGLE_CALENDAR_CREDENTIALS);
-
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/calendar']
-    });
-
-    calendar = google.calendar({ version: 'v3', auth });
-    isEnabled = true;
-
-    logger.success('Google Calendar API初期化成功');
-    return true;
-  } catch (error) {
-    logger.failure('Google Calendar API初期化エラー', {
-      error: error.message
-    });
-    return false;
-  }
-}
-
-/**
- * Google Calendar連携が有効かチェック
+ * Google Calendar OAuth連携が有効かチェック
+ * @returns {boolean}
  */
 function isCalendarEnabled() {
-  return isEnabled;
+  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
 /**
@@ -89,34 +22,42 @@ function isCalendarEnabled() {
  */
 async function createCalendarEvent(task) {
   try {
-    if (!isEnabled) {
-      logger.warn('Google Calendar連携が無効です');
+    if (!isCalendarEnabled()) {
+      logger.debug('Google Calendar連携が無効です');
       return null;
     }
 
     if (!task.due_date) {
-      logger.info('期限がないタスクはカレンダーに追加されません', {
+      logger.debug('期限がないタスクはカレンダーに追加されません', {
         taskId: task.task_id
       });
       return null;
     }
 
-    // 担当者のカレンダーIDを取得（見つからない場合は環境変数のカレンダーIDを使用）
-    let calendarId = await getCalendarIdBySlackUserId(task.assignee);
-
-    if (!calendarId) {
-      logger.warn('担当者のカレンダーIDが見つかりません。デフォルトカレンダーを使用します', {
-        assignee: task.assignee,
+    if (!task.assignee) {
+      logger.debug('担当者が設定されていません', {
         taskId: task.task_id
       });
-      calendarId = process.env.GOOGLE_CALENDAR_ID;
-    } else {
-      logger.info('担当者のカレンダーにイベントを作成します', {
-        assignee: task.assignee,
-        calendarId,
-        taskId: task.task_id
-      });
+      return null;
     }
+
+    // 担当者の認証済みOAuth2クライアントを取得
+    const oauth2Client = await googleCalendarOAuthService.getAuthenticatedClient(task.assignee);
+
+    if (!oauth2Client) {
+      logger.debug('担当者がGoogleカレンダー連携していません', {
+        assignee: task.assignee,
+        taskId: task.task_id
+      });
+      return null;
+    }
+
+    // カレンダークライアントを作成
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    // ユーザーのカレンダーIDを取得（デフォルトはprimary）
+    const tokenData = await googleCalendarOAuthService.getUserTokens(task.assignee);
+    const calendarId = tokenData?.calendar_id || 'primary';
 
     // 優先度に応じた色を設定
     const colorMap = {
@@ -143,7 +84,7 @@ async function createCalendarEvent(task) {
       extendedProperties: {
         private: {
           taskId: task.task_id,
-          source: 'sapot-san'
+          source: 'sapota-san'
         }
       }
     };
@@ -155,7 +96,8 @@ async function createCalendarEvent(task) {
 
     logger.success('Google Calendarイベント作成', {
       taskId: task.task_id,
-      eventId: response.data.id
+      eventId: response.data.id,
+      assignee: task.assignee
     });
 
     return response.data;
@@ -171,13 +113,19 @@ async function createCalendarEvent(task) {
 /**
  * タスクIDでGoogle Calendarイベントを検索
  * @param {string} taskId - タスクID
+ * @param {string} slackUserId - SlackユーザーID
  * @returns {Promise<Object|null>} イベントまたはnull
  */
-async function findEventByTaskId(taskId) {
+async function findEventByTaskId(taskId, slackUserId) {
   try {
-    if (!isEnabled) return null;
+    if (!isCalendarEnabled()) return null;
 
-    const calendarId = process.env.GOOGLE_CALENDAR_ID;
+    const oauth2Client = await googleCalendarOAuthService.getAuthenticatedClient(slackUserId);
+    if (!oauth2Client) return null;
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const tokenData = await googleCalendarOAuthService.getUserTokens(slackUserId);
+    const calendarId = tokenData?.calendar_id || 'primary';
 
     const response = await calendar.events.list({
       calendarId,
@@ -193,6 +141,7 @@ async function findEventByTaskId(taskId) {
   } catch (error) {
     logger.failure('Google Calendarイベント検索エラー', {
       taskId,
+      slackUserId,
       error: error.message
     });
     return null;
@@ -206,31 +155,29 @@ async function findEventByTaskId(taskId) {
  */
 async function updateCalendarEvent(task) {
   try {
-    if (!isEnabled) return null;
+    if (!isCalendarEnabled()) return null;
+
+    if (!task.assignee) return null;
 
     if (!task.due_date) {
       // 期限がない場合は既存イベントを削除
-      await deleteCalendarEvent(task.task_id);
+      await deleteCalendarEvent(task.task_id, task.assignee);
       return null;
     }
 
-    const existingEvent = await findEventByTaskId(task.task_id);
+    const oauth2Client = await googleCalendarOAuthService.getAuthenticatedClient(task.assignee);
+    if (!oauth2Client) return null;
+
+    const existingEvent = await findEventByTaskId(task.task_id, task.assignee);
 
     if (!existingEvent) {
       // イベントが存在しない場合は新規作成
       return await createCalendarEvent(task);
     }
 
-    // 担当者のカレンダーIDを取得
-    let calendarId = await getCalendarIdBySlackUserId(task.assignee);
-
-    if (!calendarId) {
-      logger.warn('担当者のカレンダーIDが見つかりません。デフォルトカレンダーを使用します', {
-        assignee: task.assignee,
-        taskId: task.task_id
-      });
-      calendarId = process.env.GOOGLE_CALENDAR_ID;
-    }
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const tokenData = await googleCalendarOAuthService.getUserTokens(task.assignee);
+    const calendarId = tokenData?.calendar_id || 'primary';
 
     const colorMap = {
       1: '11', // 赤
@@ -256,7 +203,7 @@ async function updateCalendarEvent(task) {
       extendedProperties: {
         private: {
           taskId: task.task_id,
-          source: 'sapot-san',
+          source: 'sapota-san',
           status: task.status
         }
       }
@@ -286,20 +233,26 @@ async function updateCalendarEvent(task) {
 /**
  * Google Calendarイベントを削除
  * @param {string} taskId - タスクID
+ * @param {string} slackUserId - SlackユーザーID
  * @returns {Promise<boolean>} 削除成功ならtrue
  */
-async function deleteCalendarEvent(taskId) {
+async function deleteCalendarEvent(taskId, slackUserId) {
   try {
-    if (!isEnabled) return false;
+    if (!isCalendarEnabled()) return false;
 
-    const existingEvent = await findEventByTaskId(taskId);
+    const oauth2Client = await googleCalendarOAuthService.getAuthenticatedClient(slackUserId);
+    if (!oauth2Client) return false;
+
+    const existingEvent = await findEventByTaskId(taskId, slackUserId);
 
     if (!existingEvent) {
-      logger.info('削除するイベントが見つかりません', { taskId });
+      logger.debug('削除するイベントが見つかりません', { taskId, slackUserId });
       return false;
     }
 
-    const calendarId = process.env.GOOGLE_CALENDAR_ID;
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const tokenData = await googleCalendarOAuthService.getUserTokens(slackUserId);
+    const calendarId = tokenData?.calendar_id || 'primary';
 
     await calendar.events.delete({
       calendarId,
@@ -315,6 +268,7 @@ async function deleteCalendarEvent(taskId) {
   } catch (error) {
     logger.failure('Google Calendarイベント削除エラー', {
       taskId,
+      slackUserId,
       error: error.message
     });
     return false;
@@ -328,7 +282,7 @@ async function deleteCalendarEvent(taskId) {
  */
 async function markEventAsCompleted(taskId) {
   try {
-    if (!isEnabled) return null;
+    if (!isCalendarEnabled()) return null;
 
     // 循環依存を避けるため、ここで遅延読み込み
     const taskService = require('./taskService');
@@ -354,8 +308,8 @@ async function markEventAsCompleted(taskId) {
  */
 async function syncAllTasksToCalendar() {
   try {
-    if (!isEnabled) {
-      logger.warn('Google Calendar連携が無効です');
+    if (!isCalendarEnabled()) {
+      logger.debug('Google Calendar連携が無効です');
       return 0;
     }
 
@@ -366,13 +320,24 @@ async function syncAllTasksToCalendar() {
 
     // 期限があるタスクのみ取得
     const allTasks = await taskService.getTasks({});
-    const tasksWithDeadline = allTasks.filter(task => task.due_date);
+    const tasksWithDeadline = allTasks.filter(task => task.due_date && task.assignee);
 
     let syncCount = 0;
 
     for (const task of tasksWithDeadline) {
       try {
-        const existingEvent = await findEventByTaskId(task.task_id);
+        // 担当者がカレンダー連携しているかチェック
+        const isConnected = await googleCalendarOAuthService.isCalendarConnected(task.assignee);
+
+        if (!isConnected) {
+          logger.debug('担当者がカレンダー連携していません', {
+            taskId: task.task_id,
+            assignee: task.assignee
+          });
+          continue;
+        }
+
+        const existingEvent = await findEventByTaskId(task.task_id, task.assignee);
 
         if (existingEvent) {
           await updateCalendarEvent(task);
@@ -399,9 +364,6 @@ async function syncAllTasksToCalendar() {
     return 0;
   }
 }
-
-// 初期化を実行
-initializeCalendar();
 
 module.exports = {
   isCalendarEnabled,

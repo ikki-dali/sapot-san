@@ -10,6 +10,7 @@ const calendarRoutes = require('./src/api/routes/calendarRoutes');
 const unrepliedRoutes = require('./src/api/routes/unrepliedRoutes');
 const tagRoutes = require('./src/api/routes/tagRoutes');
 const authRoutes = require('./src/api/routes/authRoutes');
+const googleCalendarOAuthRoutes = require('./src/api/routes/googleCalendarOAuthRoutes');
 
 const app = express();
 const PORT = process.env.API_PORT || 3000;
@@ -29,6 +30,11 @@ app.use((req, res, next) => {
     ip: req.ip
   });
   next();
+});
+
+// ルートパスからログインページへリダイレクト
+app.get('/', (req, res) => {
+  res.redirect('/login.html');
 });
 
 // ヘルスチェック
@@ -62,6 +68,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/unreplied', unrepliedRoutes);
 app.use('/api/tags', tagRoutes);
+app.use('/api/google-calendar', googleCalendarOAuthRoutes);
 
 // API情報エンドポイント
 app.get('/api', (req, res) => {
@@ -76,7 +83,8 @@ app.get('/api', (req, res) => {
       stats: '/api/stats',
       calendar: '/api/calendar',
       unreplied: '/api/unreplied',
-      tags: '/api/tags'
+      tags: '/api/tags',
+      googleCalendarOAuth: '/api/google-calendar'
     }
   });
 });
