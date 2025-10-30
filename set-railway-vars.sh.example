@@ -1,0 +1,11 @@
+#!/bin/bash
+
+railway variables \
+  --set "SUPABASE_URL=your_supabase_url_here" \
+  --set "SUPABASE_ANON_KEY=your_supabase_anon_key_here" \
+  --set "SLACK_BOT_TOKEN=your_slack_bot_token_here" \
+  --set "SLACK_APP_TOKEN=your_slack_app_token_here" \
+  --set "SLACK_SIGNING_SECRET=your_slack_signing_secret_here" \
+  --set "OPENAI_API_KEY=your_openai_api_key_here" \
+  --set "PORT=3000" \
+  --set "NODE_ENV=production"

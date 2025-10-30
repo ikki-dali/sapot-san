@@ -10,3 +10,14 @@ logs/
 
 # OS
 .DS_Store
+
+# Credentials and secrets
+*.json
+!package.json
+!package-lock.json
+!vercel.json
+!jsconfig.json
+!tsconfig.json
+set-railway-vars.sh
+*.pem
+*.key
