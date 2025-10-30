@@ -38,7 +38,7 @@
         <!-- 使い方説明 -->
         <div class="alert alert-info" role="alert">
             <h5 class="alert-heading"><i class="bi bi-info-circle"></i> Google Calendar連携について</h5>
-            <p>GoogleカレンダーとサポデータさんのGoogle Calendarを連携すると、担当タスクが自動的にあなたのGoogleカレンダーに追加されます。</p>
+            <p>Googleカレンダーとサポ田さんのGoogle Calendarを連携すると、担当タスクが自動的にあなたのGoogleカレンダーに追加されます。</p>
             <hr>
             <p class="mb-0">
                 <strong>機能：</strong><br>
@@ -118,7 +118,7 @@
         // 環境に応じてAPI URLを自動設定
         const API_URL = window.location.hostname === 'localhost'
             ? 'http://localhost:3000/api'
-            : '/api';
+            : 'https://sapot-san-bot-production.up.railway.app/api';
 
         // ページ読み込み時
         document.addEventListener('DOMContentLoaded', () => {

@@ -166,7 +166,7 @@
         // 環境に応じてAPI URLを自動設定
         const API_URL = window.location.hostname === 'localhost'
             ? 'http://localhost:3000/api'
-            : '/api';
+            : 'https://sapot-san-bot-production.up.railway.app/api';
 
         // 既にログイン済みの場合はダッシュボードにリダイレクト
         const token = localStorage.getItem('authToken');
