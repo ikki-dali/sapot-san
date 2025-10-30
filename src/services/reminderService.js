@@ -311,11 +311,12 @@ function startReminderJobs(slackClient) {
   });
 
   // 1分ごとにカスタムユーザーリマインドをチェック・実行
-  cron.schedule('* * * * *', async () => {
-    await checkAndExecuteUserReminders(slackClient);
-  }, {
-    timezone: 'Asia/Tokyo'
-  });
+  // 🚧 一時的に無効化（文字化け問題のため）
+  // cron.schedule('* * * * *', async () => {
+  //   await checkAndExecuteUserReminders(slackClient);
+  // }, {
+  //   timezone: 'Asia/Tokyo'
+  // });
 
   // Notion連携が有効な場合のみ、定期同期ジョブを起動
   if (notionService.isNotionEnabled()) {
@@ -342,7 +343,6 @@ function startReminderJobs(slackClient) {
     console.log('  - 毎日 9:00: 24時間以内の期限タスク通知');
     console.log('  - 30分ごと: 未返信メッセージリマインド送信（2時間経過）');
     console.log('  - 毎日 18:00: 期限切れタスク通知');
-    console.log('  - 1分ごと: カスタムユーザーリマインド実行');
     console.log('  - 15分ごと: Notion双方向同期');
   } else {
     console.log('✅ リマインダーcronジョブを開始しました');
@@ -350,7 +350,6 @@ function startReminderJobs(slackClient) {
     console.log('  - 毎日 9:00: 24時間以内の期限タスク通知');
     console.log('  - 30分ごと: 未返信メッセージリマインド送信（2時間経過）');
     console.log('  - 毎日 18:00: 期限切れタスク通知');
-    console.log('  - 1分ごと: カスタムユーザーリマインド実行');
     console.log('  ℹ️ Notion連携は無効です（.envでNOTION_API_KEYとNOTION_DATABASE_IDを設定してください）');
   }
 
