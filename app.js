@@ -1258,4 +1258,8 @@ app.view('task_modal_submit', async ({ ack, body, view, client }) => {
 
   // リマインダーcronジョブを開始
   reminderService.startReminderJobs(app.client);
+
+  // Webサーバー（API）を起動
+  require('./server.js');
+  logger.success('APIサーバーも起動しました！');
 })();
