@@ -1,7 +1,15 @@
 const { WebClient } = require('@slack/web-api');
+const logger = require('../utils/logger');
 
 // Slack Web APIクライアントを初期化
 const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
+
+// 初期化時にトークンの存在を確認
+if (!process.env.SLACK_BOT_TOKEN) {
+  logger.failure('SLACK_BOT_TOKENが設定されていません');
+} else {
+  logger.info('Slack APIクライアント初期化完了');
+}
 
 // ユーザー情報のキャッシュ
 const userCache = new Map();
@@ -41,7 +49,12 @@ async function getChannelInfo(channelId) {
     // 取得失敗時はIDをそのまま返す
     return { id: channelId, name: channelId, is_private: false };
   } catch (error) {
-    console.error(`⚠️ チャンネル情報取得エラー (${channelId}):`, error.message);
+    logger.failure('チャンネル情報取得エラー', {
+      channelId,
+      error: error.message,
+      data: error.data,
+      statusCode: error.statusCode
+    });
     // エラー時はIDをそのまま返す
     return { id: channelId, name: channelId, is_private: false };
   }
@@ -98,7 +111,12 @@ async function getUserInfo(userId) {
     // 取得失敗時はIDをそのまま返す
     return { id: userId, name: userId, display_name: userId, email: null };
   } catch (error) {
-    console.error(`⚠️ ユーザー情報取得エラー (${userId}):`, error.message);
+    logger.failure('ユーザー情報取得エラー', {
+      userId,
+      error: error.message,
+      data: error.data,
+      statusCode: error.statusCode
+    });
     // エラー時はIDをそのまま返す
     return { id: userId, name: userId, display_name: userId, email: null };
   }

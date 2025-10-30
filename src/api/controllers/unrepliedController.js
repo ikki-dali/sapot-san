@@ -12,21 +12,27 @@ async function getUnrepliedMentions(req, res) {
 
     const mentions = await unrepliedService.getUnrepliedMentions(parseInt(hours));
 
-    // ユーザーIDを抽出
+    // ユーザーIDとチャンネルIDを抽出
     const userIds = [];
+    const channelIds = [];
     mentions.forEach(mention => {
       if (mention.mentioned_user) userIds.push(mention.mentioned_user);
       if (mention.mentioner_user) userIds.push(mention.mentioner_user);
+      if (mention.channel) channelIds.push(mention.channel);
     });
 
-    // ユーザー情報を一括取得
-    const usersInfo = await slackService.getUsersInfo(userIds);
+    // ユーザー情報とチャンネル情報を一括取得
+    const [usersInfo, channelsInfo] = await Promise.all([
+      slackService.getUsersInfo(userIds),
+      slackService.getChannelsInfo(channelIds)
+    ]);
 
-    // メンションにユーザー名を追加
+    // メンションにユーザー名とチャンネル名を追加
     const mentionsWithNames = mentions.map(mention => ({
       ...mention,
       mentioned_user_name: usersInfo[mention.mentioned_user]?.name || mention.mentioned_user,
-      mentioner_user_name: usersInfo[mention.mentioner_user]?.name || mention.mentioner_user
+      mentioner_user_name: usersInfo[mention.mentioner_user]?.name || mention.mentioner_user,
+      channel_name: channelsInfo[mention.channel]?.name || mention.channel
     }));
 
     logger.success('未返信メンション取得成功', { count: mentions.length });

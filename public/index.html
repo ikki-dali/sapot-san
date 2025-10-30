@@ -603,6 +603,7 @@
                                         ${tagBadges ? '<div class="mt-1">' + tagBadges + '</div>' : ''}
                                     </h6>
                                     <small class="text-muted">
+                                        <i class="bi bi-hash"></i> ${escapeHtml(task.channel_name || task.channel)} |
                                         <i class="bi bi-calendar"></i> 作成: ${createdAt} |
                                         <i class="bi bi-alarm"></i> 期限: ${dueDate} |
                                         <i class="bi bi-person"></i> 担当: ${escapeHtml(task.assignee_name || task.assignee)}
@@ -666,6 +667,7 @@
                                 <div class="flex-grow-1">
                                     <h6 class="mb-1">${escapeHtml(mention.message_text)}</h6>
                                     <small class="text-muted">
+                                        <i class="bi bi-hash"></i> ${escapeHtml(mention.channel_name || mention.channel)} |
                                         <i class="bi bi-person-fill"></i> 対象: ${escapeHtml(mention.mentioned_user_name || mention.mentioned_user)} |
                                         <i class="bi bi-person"></i> 送信者: ${escapeHtml(mention.mentioner_user_name || mention.mentioner_user)} |
                                         <i class="bi bi-clock"></i> ${mentionedAt} (${hoursElapsed}時間経過)

@@ -23,21 +23,26 @@ async function getTasks(req, res) {
     // タグ情報を一括取得
     const taskTagsMap = await tagService.getMultipleTaskTags(taskIds);
 
-    // 各タスクの担当者名を取得
-    const tasksWithNames = await Promise.all(tasks.map(async (task) => {
-      // user_calendarsテーブルから名前を取得
-      const { data } = await supabase
-        .from('user_calendars')
-        .select('display_name')
-        .eq('slack_user_id', task.assignee)
-        .single();
+    // ユーザーIDとチャンネルIDを抽出
+    const userIds = [...new Set(tasks.map(task => task.assignee).filter(Boolean))];
+    const channelIds = [...new Set(tasks.map(task => task.channel).filter(Boolean))];
 
+    // Slack APIでユーザー情報とチャンネル情報を一括取得
+    const slackService = require('../../services/slackService');
+    const [usersInfo, channelsInfo] = await Promise.all([
+      slackService.getUsersInfo(userIds),
+      slackService.getChannelsInfo(channelIds)
+    ]);
+
+    // 各タスクに名前情報を追加
+    const tasksWithNames = tasks.map(task => {
       return {
         ...task,
-        assignee_name: data?.display_name || task.assignee, // 名前がない場合はUser IDを表示
-        tags: taskTagsMap[task.task_id] || [] // タグ情報を追加
+        assignee_name: usersInfo[task.assignee]?.name || task.assignee,
+        channel_name: channelsInfo[task.channel]?.name || task.channel,
+        tags: taskTagsMap[task.task_id] || []
       };
-    }));
+    });
 
     logger.success('タスク一覧取得成功', { count: tasksWithNames.length, filters });
 
