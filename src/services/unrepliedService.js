@@ -16,7 +16,8 @@ async function recordMention(mentionData) {
         message_ts: mentionData.messageTs,
         mentioned_user: mentionData.mentionedUser,
         mentioner_user: mentionData.mentionerUser,
-        message_text: mentionData.text
+        message_text: mentionData.text,
+        priority: mentionData.priority || 2  // デフォルトは中（2）
       }])
       .select()
       .single();
@@ -331,6 +332,20 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
         if (analysis.isTask && analysis.confidence >= 70) {
           console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
 
+          // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
+          // Slackでは絵文字が :red_circle: のようなコードになるため、両方チェック
+          let detectedPriority = 2; // デフォルトは中
+          if (line.includes('🔴') || line.includes(':red_circle:')) {
+            detectedPriority = 1; // 高
+            console.log(`👤 優先度検出: 🔴 高`);
+          } else if (line.includes('🟡') || line.includes(':yellow_circle:')) {
+            detectedPriority = 2; // 中
+            console.log(`👤 優先度検出: 🟡 中`);
+          } else if (line.includes('🟢') || line.includes(':green_circle:')) {
+            detectedPriority = 3; // 低
+            console.log(`👤 優先度検出: 🟢 低`);
+          }
+
           // この行でメンションされた各ユーザーに対して記録
           for (const mentionedUser of lineMentions) {
             const recorded = await recordMention({
@@ -338,7 +353,8 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
               messageTs,
               mentionedUser,
               mentionerUser: senderUser,
-              text: cleanText // この行のテキストのみ
+              text: cleanText, // この行のテキストのみ
+              priority: detectedPriority  // 検出した優先度を渡す
             });
 
             if (recorded) {

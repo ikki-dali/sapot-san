@@ -921,14 +921,15 @@ app.event('message', async ({ event, client }) => {
 
         for (const mention of unrepliedMentions) {
           try {
-            // タスクを作成
+            // タスクを作成（保存されている優先度を使用）
+            const taskPriority = mention.priority || 2;  // デフォルトは中
             const newTask = await taskService.createTask({
               text: `【返信あり】${mention.message_text}`,
               channel: mention.channel,
               messageTs: mention.message_ts,
               createdBy: 'auto_reply_system',
               assignee: mention.mentioned_user,
-              priority: 2
+              priority: taskPriority
             });
 
             // 未返信記録を更新（replied_at と task_id）
@@ -943,11 +944,14 @@ app.event('message', async ({ event, client }) => {
 
             console.log(`✅ タスク化完了: ${newTask.task_id} (対象: ${mention.mentioned_user})`);
 
+            // 優先度ラベルを取得
+            const priorityLabel = getPriorityLabel(taskPriority);
+            
             // Slackに通知
             await client.chat.postMessage({
               channel: event.channel,
               thread_ts: event.thread_ts,
-              text: `✅ 返信を確認しました。タスクとして記録しました。\n\n*タスクID:* ${newTask.task_id}\n*担当:* <@${mention.mentioned_user}>\n*優先度:* 🟡 中\n\n完了したら \`/task-done ${newTask.task_id}\` を実行してください。`
+              text: `✅ 返信を確認しました。タスクとして記録しました。\n\n*タスクID:* ${newTask.task_id}\n*担当:* <@${mention.mentioned_user}>\n*優先度:* ${priorityLabel}\n\n完了したら \`/task-done ${newTask.task_id}\` を実行してください。`
             });
           } catch (taskError) {
             console.error(`⚠️ タスク化失敗 (ID: ${mention.id}):`, taskError.message);
