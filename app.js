@@ -508,17 +508,17 @@ async function handleTaskRequest(client, event, cleanText, intentResult) {
   }
 
   // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
+  // Slackでは絵文字が :red_circle: のようなコードになるため、両方チェック
   console.log(`🔍 優先度検出デバッグ: cleanText = "${cleanText}"`);
-  console.log(`🔍 🔴含む? ${cleanText.includes('🔴')}, 🟡含む? ${cleanText.includes('🟡')}, 🟢含む? ${cleanText.includes('🟢')}`);
 
   let userPriority = null;
-  if (cleanText.includes('🔴')) {
+  if (cleanText.includes('🔴') || cleanText.includes(':red_circle:')) {
     userPriority = 1; // 高
     console.log('👤 ユーザーが優先度を指定: 🔴 高');
-  } else if (cleanText.includes('🟡')) {
+  } else if (cleanText.includes('🟡') || cleanText.includes(':yellow_circle:')) {
     userPriority = 2; // 中
     console.log('👤 ユーザーが優先度を指定: 🟡 中');
-  } else if (cleanText.includes('🟢')) {
+  } else if (cleanText.includes('🟢') || cleanText.includes(':green_circle:')) {
     userPriority = 3; // 低
     console.log('👤 ユーザーが優先度を指定: 🟢 低');
   }
