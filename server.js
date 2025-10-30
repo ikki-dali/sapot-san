@@ -40,6 +40,21 @@ app.get('/health', (req, res) => {
   });
 });
 
+// デバッグエンドポイント（環境変数チェック）
+app.get('/api/debug/env', (req, res) => {
+  res.json({
+    success: true,
+    environment: {
+      nodeEnv: process.env.NODE_ENV,
+      isVercel: !!process.env.VERCEL,
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasSupabaseKey: !!process.env.SUPABASE_ANON_KEY,
+      supabaseUrlPrefix: process.env.SUPABASE_URL ? process.env.SUPABASE_URL.substring(0, 20) + '...' : 'NOT SET'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // APIルート
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
