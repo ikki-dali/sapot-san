@@ -86,11 +86,11 @@ function getPriorityEmoji(priority) {
  */
 function getPriorityLabel(priority) {
   const labels = {
-    1: '高',
-    2: '中',
-    3: '低'
+    1: '🔴 高',
+    2: '🟡 中',
+    3: '🟢 低'
   };
-  return labels[priority] || '中';
+  return labels[priority] || '🟡 中';
 }
 
 // ===============================
@@ -1030,7 +1030,15 @@ app.event('message', async ({ event, client }) => {
                 taskAnalyses.reduce((sum, a) => sum + a.confidence, 0) / taskAnalyses.length
               );
               const recordedCount = analysis.recordedCount || taskAnalyses.length;
-              detailText = `\n*確信度:* ${avgConfidence}%\n*検知件数:* ${recordedCount}件のタスク依頼`;
+              
+              // 優先度情報を取得（最初のタスクの優先度を使用）
+              const firstPriority = taskAnalyses[0].priority || 2;
+              const priorityLabel = getPriorityLabel(firstPriority);
+              
+              detailText = `
+*確信度:* ${avgConfidence}%
+*検知件数:* ${recordedCount}件のタスク依頼
+*優先度:* ${priorityLabel}`;
               console.log('✅ detailText生成:', detailText);
             }
           } else {

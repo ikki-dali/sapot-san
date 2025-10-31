@@ -367,7 +367,8 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
             line: cleanText,
             isTask: true,
             confidence: analysis.confidence,
-            mentionCount: lineMentions.length
+            mentionCount: lineMentions.length,
+            priority: detectedPriority  // 優先度を追加
           });
         } else {
           console.log(`❌ タスクではないと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
