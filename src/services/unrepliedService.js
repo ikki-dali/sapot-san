@@ -346,6 +346,16 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
             console.log(`👤 優先度検出: 🟢 低`);
           }
 
+          // 優先度絵文字を内容から除去（絵文字は目印なので保存時には含めない）
+          const textWithoutPriorityEmoji = cleanText
+            .replace(/🔴/g, '')
+            .replace(/:red_circle:/g, '')
+            .replace(/🟡/g, '')
+            .replace(/:yellow_circle:/g, '')
+            .replace(/🟢/g, '')
+            .replace(/:green_circle:/g, '')
+            .trim();
+
           // この行でメンションされた各ユーザーに対して記録
           for (const mentionedUser of lineMentions) {
             const recorded = await recordMention({
@@ -353,18 +363,18 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
               messageTs,
               mentionedUser,
               mentionerUser: senderUser,
-              text: cleanText, // この行のテキストのみ
+              text: textWithoutPriorityEmoji, // 優先度絵文字を除去したテキスト
               priority: detectedPriority  // 検出した優先度を渡す
             });
 
             if (recorded) {
               totalRecorded++;
-              console.log(`📝 記録完了: ${mentionedUser} <- "${cleanText}"`);
+              console.log(`📝 記録完了: ${mentionedUser} <- "${textWithoutPriorityEmoji}"`);
             }
           }
 
           allAnalyses.push({
-            line: cleanText,
+            line: textWithoutPriorityEmoji,
             isTask: true,
             confidence: analysis.confidence,
             mentionCount: lineMentions.length,
