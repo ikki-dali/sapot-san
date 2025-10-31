@@ -321,42 +321,42 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
         continue;
       }
 
-      console.log(`🔍 行を分析: "${cleanText}" (対象: ${lineMentions.length}人)`);
+      // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
+      // Slackでは絵文字が :red_circle: や :large_yellow_circle: のようなコードになるため、両方チェック
+      let detectedPriority = 2; // デフォルトは中
+      if (line.includes('🔴') || line.includes(':red_circle:')) {
+        detectedPriority = 1; // 高
+        console.log(`👤 優先度検出: 🔴 高`);
+      } else if (line.includes('🟡') || line.includes(':yellow_circle:') || line.includes(':large_yellow_circle:')) {
+        detectedPriority = 2; // 中
+        console.log(`👤 優先度検出: 🟡 中`);
+      } else if (line.includes('🟢') || line.includes(':green_circle:') || line.includes(':large_green_circle:')) {
+        detectedPriority = 3; // 低
+        console.log(`👤 優先度検出: 🟢 低`);
+      }
+
+      // 優先度絵文字を内容から除去（絵文字は目印なので保存時には含めない）
+      const textWithoutPriorityEmoji = cleanText
+        .replace(/🔴/g, '')
+        .replace(/:red_circle:/g, '')
+        .replace(/🟡/g, '')
+        .replace(/:yellow_circle:/g, '')
+        .replace(/:large_yellow_circle:/g, '')
+        .replace(/🟢/g, '')
+        .replace(/:green_circle:/g, '')
+        .replace(/:large_green_circle:/g, '')
+        .trim();
+
+      console.log(`🔍 行を分析: "${textWithoutPriorityEmoji}" (対象: ${lineMentions.length}人)`);
 
       // AI機能が有効な場合はタスク判定
       if (isAIEnabled && process.env.AI_AUTO_TASK_ENABLED === 'true') {
-        // タスクかどうかを判定
-        const analysis = await aiService.analyzeTaskRequest(cleanText);
+        // タスクかどうかを判定（絵文字を除去したテキストで判定）
+        const analysis = await aiService.analyzeTaskRequest(textWithoutPriorityEmoji);
 
         // 確信度が70%以上の場合、タスクとして記録
         if (analysis.isTask && analysis.confidence >= 70) {
           console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
-
-          // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
-          // Slackでは絵文字が :red_circle: や :large_yellow_circle: のようなコードになるため、両方チェック
-          let detectedPriority = 2; // デフォルトは中
-          if (line.includes('🔴') || line.includes(':red_circle:')) {
-            detectedPriority = 1; // 高
-            console.log(`👤 優先度検出: 🔴 高`);
-          } else if (line.includes('🟡') || line.includes(':yellow_circle:') || line.includes(':large_yellow_circle:')) {
-            detectedPriority = 2; // 中
-            console.log(`👤 優先度検出: 🟡 中`);
-          } else if (line.includes('🟢') || line.includes(':green_circle:') || line.includes(':large_green_circle:')) {
-            detectedPriority = 3; // 低
-            console.log(`👤 優先度検出: 🟢 低`);
-          }
-
-          // 優先度絵文字を内容から除去（絵文字は目印なので保存時には含めない）
-          const textWithoutPriorityEmoji = cleanText
-            .replace(/🔴/g, '')
-            .replace(/:red_circle:/g, '')
-            .replace(/🟡/g, '')
-            .replace(/:yellow_circle:/g, '')
-            .replace(/:large_yellow_circle:/g, '')
-            .replace(/🟢/g, '')
-            .replace(/:green_circle:/g, '')
-            .replace(/:large_green_circle:/g, '')
-            .trim();
 
           // この行でメンションされた各ユーザーに対して記録
           for (const mentionedUser of lineMentions) {
