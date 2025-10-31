@@ -333,15 +333,15 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
           console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
 
           // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
-          // Slackでは絵文字が :red_circle: のようなコードになるため、両方チェック
+          // Slackでは絵文字が :red_circle: や :large_yellow_circle: のようなコードになるため、両方チェック
           let detectedPriority = 2; // デフォルトは中
           if (line.includes('🔴') || line.includes(':red_circle:')) {
             detectedPriority = 1; // 高
             console.log(`👤 優先度検出: 🔴 高`);
-          } else if (line.includes('🟡') || line.includes(':yellow_circle:')) {
+          } else if (line.includes('🟡') || line.includes(':yellow_circle:') || line.includes(':large_yellow_circle:')) {
             detectedPriority = 2; // 中
             console.log(`👤 優先度検出: 🟡 中`);
-          } else if (line.includes('🟢') || line.includes(':green_circle:')) {
+          } else if (line.includes('🟢') || line.includes(':green_circle:') || line.includes(':large_green_circle:')) {
             detectedPriority = 3; // 低
             console.log(`👤 優先度検出: 🟢 低`);
           }
@@ -352,8 +352,10 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
             .replace(/:red_circle:/g, '')
             .replace(/🟡/g, '')
             .replace(/:yellow_circle:/g, '')
+            .replace(/:large_yellow_circle:/g, '')
             .replace(/🟢/g, '')
             .replace(/:green_circle:/g, '')
+            .replace(/:large_green_circle:/g, '')
             .trim();
 
           // この行でメンションされた各ユーザーに対して記録
