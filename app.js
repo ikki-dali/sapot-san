@@ -951,7 +951,14 @@ app.event('message', async ({ event, client }) => {
             await client.chat.postMessage({
               channel: event.channel,
               thread_ts: event.thread_ts,
-              text: `✅ 返信を確認しました。タスクとして記録しました。\n\n*タスクID:* ${newTask.task_id}\n*担当:* <@${mention.mentioned_user}>\n*優先度:* ${priorityLabel}\n\n完了したら \`/task-done ${newTask.task_id}\` を実行してください。`
+              text: `✅ 返信を確認しました。タスクとして記録しました。
+
+*内容:* ${mention.message_text}
+*タスクID:* ${newTask.task_id}
+*担当:* <@${mention.mentioned_user}>
+*優先度:* ${priorityLabel}
+
+完了したら \`/task-done ${newTask.task_id}\` を実行してください。`
             });
           } catch (taskError) {
             console.error(`⚠️ タスク化失敗 (ID: ${mention.id}):`, taskError.message);
@@ -1010,48 +1017,35 @@ app.event('message', async ({ event, client }) => {
 
         console.log('📊 AI分析結果:', analysis);
 
-        // タスクと判定された場合、確認通知を送信
+        // タスクと判定された場合、各行ごとに個別の確認通知を送信
         if (analysis.isTask) {
-          const mentionList = nonBotMentions.map(id => `<@${id}>`).join(', ');
-
-          // 分析結果の詳細を取得
-          let detailText = '';
-          console.log('🔍 analysis.analyses:', JSON.stringify(analysis.analyses, null, 2));
+          console.log('📊 AI分析結果:', JSON.stringify(analysis.analyses, null, 2));
           console.log('🔍 analysis.recordedCount:', analysis.recordedCount);
 
           if (analysis.analyses && Array.isArray(analysis.analyses) && analysis.analyses.length > 0) {
             // タスクと判定された行のみ抽出
             const taskAnalyses = analysis.analyses.filter(a => a && a.isTask && typeof a.confidence === 'number');
-            console.log('🔍 taskAnalyses:', taskAnalyses.length);
+            console.log(`🔍 ${taskAnalyses.length}件のタスクを個別通知します`);
 
-            if (taskAnalyses.length > 0) {
-              // 平均確信度を計算
-              const avgConfidence = Math.round(
-                taskAnalyses.reduce((sum, a) => sum + a.confidence, 0) / taskAnalyses.length
-              );
-              const recordedCount = analysis.recordedCount || taskAnalyses.length;
+            // 各タスクごとに個別の通知を送信
+            for (const taskAnalysis of taskAnalyses) {
+              const priorityLabel = getPriorityLabel(taskAnalysis.priority || 2);
               
-              // 優先度情報を取得（最初のタスクの優先度を使用）
-              const firstPriority = taskAnalyses[0].priority || 2;
-              const priorityLabel = getPriorityLabel(firstPriority);
+              await client.chat.postMessage({
+                channel: event.channel,
+                thread_ts: event.ts,
+                text: `👀 タスク依頼を検知しました
+
+*内容:* ${taskAnalysis.line}
+*確信度:* ${taskAnalysis.confidence}%
+*優先度:* ${priorityLabel}
+
+⏰ 2時間以内に返信がない場合、リマインド通知を送信します。`
+              });
               
-              detailText = `
-*確信度:* ${avgConfidence}%
-*検知件数:* ${recordedCount}件のタスク依頼
-*優先度:* ${priorityLabel}`;
-              console.log('✅ detailText生成:', detailText);
+              console.log(`✅ タスク通知送信: "${taskAnalysis.line}" (優先度: ${priorityLabel})`);
             }
-          } else {
-            // 旧形式のフォールバック（念のため）
-            console.log('⚠️ 旧形式のレスポンスを検出、デフォルト値を使用');
-            detailText = `\n*検知件数:* ${analysis.recordedCount || nonBotMentions.length}件のタスク依頼`;
           }
-
-          await client.chat.postMessage({
-            channel: event.channel,
-            thread_ts: event.ts,
-            text: `👀 このメッセージをタスク依頼として検知しました\n\n*対象:* ${mentionList}${detailText}\n\n⏰ 2時間以内に返信がない場合、リマインド通知を送信します。`
-          });
 
           logger.task(`タスク依頼検知: ${analysis.recordedCount}件のタスクを記録`);
           console.log('✅ タスク検知通知を送信しました');
