@@ -913,6 +913,9 @@ app.event('message', async ({ event, client }) => {
         const mentionedUsers = mentions.map(m => m[1]);
         console.log(`👤 メンションされたユーザー: ${mentionedUsers.join(', ')}`);
 
+        // 処理済みタスクIDを追跡（重複通知を防ぐ）
+        const processedTaskIds = new Set();
+
         // 各取り消し線テキストに対して処理
         for (const match of strikethroughMatches) {
           const strikethroughText = match[1];  // ~の中のテキスト
@@ -947,9 +950,19 @@ app.event('message', async ({ event, client }) => {
               for (const mention of unrepliedMentions) {
                 // タスクIDがある場合はタスクを完了
                 if (mention.task_id) {
+                  // すでに処理済みのタスクIDはスキップ
+                  if (processedTaskIds.has(mention.task_id)) {
+                    console.log(`⏭️  タスク ${mention.task_id} は処理済みのためスキップ`);
+                    continue;
+                  }
+
                   console.log(`✅ タスク完了処理: ${mention.task_id}`);
                   try {
                     await taskService.completeTask(mention.task_id, editedMessage.user);
+
+                    // 処理済みとしてマーク
+                    processedTaskIds.add(mention.task_id);
+
                     await client.chat.postMessage({
                       channel: event.channel,
                       thread_ts: editedMessage.ts,
