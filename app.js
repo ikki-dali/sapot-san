@@ -884,8 +884,103 @@ app.event('message', async ({ event, client }) => {
       return;
     }
 
+    // message_changedイベント（メッセージ編集）の処理
+    if (event.subtype === 'message_changed') {
+      console.log('✏️ メッセージ編集を検知');
+      const editedMessage = event.message;
+
+      if (!editedMessage || !editedMessage.text) {
+        console.log('⏭️  編集後のテキストがないためスキップ');
+        return;
+      }
+
+      // 取り消し線（~テキスト~）を検出
+      const strikethroughRegex = /~([^~]+)~/g;
+      const strikethroughMatches = [...editedMessage.text.matchAll(strikethroughRegex)];
+
+      if (strikethroughMatches.length > 0) {
+        console.log(`📝 取り消し線を${strikethroughMatches.length}件検出`);
+
+        // メンションを抽出
+        const mentionRegex = /<@([A-Z0-9]+)>/g;
+        const mentions = [...editedMessage.text.matchAll(mentionRegex)];
+
+        if (mentions.length === 0) {
+          console.log('⏭️  メンションがないためスキップ');
+          return;
+        }
+
+        const mentionedUsers = mentions.map(m => m[1]);
+        console.log(`👤 メンションされたユーザー: ${mentionedUsers.join(', ')}`);
+
+        // 各取り消し線テキストに対して処理
+        for (const match of strikethroughMatches) {
+          const strikethroughText = match[1];  // ~の中のテキスト
+
+          // 優先度絵文字を除去したテキストを取得
+          const cleanText = strikethroughText
+            .replace(/🔴/g, '')
+            .replace(/:red_circle:/g, '')
+            .replace(/🟡/g, '')
+            .replace(/:yellow_circle:/g, '')
+            .replace(/:large_yellow_circle:/g, '')
+            .replace(/🟢/g, '')
+            .replace(/:green_circle:/g, '')
+            .replace(/:large_green_circle:/g, '')
+            .replace(/<@[A-Z0-9]+>/g, '')  // メンションも除去
+            .trim();
+
+          console.log(`🔍 取り消し線内容: "${cleanText}"`);
+
+          // 該当する未返信メンションまたはタスクを検索して完了にする
+          for (const mentionedUser of mentionedUsers) {
+            // まず未返信メンションから検索
+            const { data: unrepliedMentions, error: fetchError } = await supabase
+              .from('unreplied_mentions')
+              .select('*')
+              .eq('channel', event.channel)
+              .eq('message_ts', editedMessage.ts)
+              .eq('mentioned_user', mentionedUser)
+              .ilike('message_text', `%${cleanText}%`);
+
+            if (!fetchError && unrepliedMentions && unrepliedMentions.length > 0) {
+              for (const mention of unrepliedMentions) {
+                // タスクIDがある場合はタスクを完了
+                if (mention.task_id) {
+                  console.log(`✅ タスク完了処理: ${mention.task_id}`);
+                  try {
+                    await taskService.completeTask(mention.task_id, editedMessage.user);
+                    await client.chat.postMessage({
+                      channel: event.channel,
+                      thread_ts: editedMessage.ts,
+                      text: `✅ 取り消し線を検知してタスクを完了しました\n\n*タスクID:* ${mention.task_id}\n*内容:* ${cleanText}`
+                    });
+                  } catch (err) {
+                    console.error('❌ タスク完了エラー:', err.message);
+                  }
+                }
+
+                // 未返信メンションも replied としてマーク
+                await supabase
+                  .from('unreplied_mentions')
+                  .update({
+                    replied_at: new Date().toISOString(),
+                    auto_tasked: false
+                  })
+                  .eq('id', mention.id);
+
+                console.log(`📝 未返信メンション解除: ${mention.id}`);
+              }
+            }
+          }
+        }
+      }
+
+      return;  // message_changedの処理はここで終了
+    }
+
     // 特定のsubtypeは除外（channel_join, message_deletedなど）
-    const excludedSubtypes = ['channel_join', 'channel_leave', 'message_deleted', 'message_changed'];
+    const excludedSubtypes = ['channel_join', 'channel_leave', 'message_deleted'];
     if (event.subtype && excludedSubtypes.includes(event.subtype)) {
       console.log(`⏭️  サブタイプ ${event.subtype} をスキップ`);
       return;
