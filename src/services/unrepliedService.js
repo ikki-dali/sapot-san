@@ -334,9 +334,6 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
 
           // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
           // Slackでは絵文字が :red_circle: や :large_yellow_circle: のようなコードになるため、両方チェック
-          console.log(`🔍 DEBUG: line = "${line}"`);
-          console.log(`🔍 DEBUG: line.includes(':large_green_circle:') =`, line.includes(':large_green_circle:'));
-          console.log(`🔍 DEBUG: line.includes('🟢') =`, line.includes('🟢'));
           let detectedPriority = 2; // デフォルトは中
           if (line.includes('🔴') || line.includes(':red_circle:')) {
             detectedPriority = 1; // 高
