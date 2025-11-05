@@ -554,10 +554,12 @@
                 console.log('  現在のUser Name:', currentUserName);
                 console.log('  全タスク数:', filtered.length);
                 
-                // Slack User ID または ユーザー名で比較
+                // Slack User ID または ユーザー名で比較（部分一致も許容）
                 filtered = filtered.filter(task => {
                     const matchById = currentSlackUserId && task.assignee === currentSlackUserId;
-                    const matchByName = task.assignee_name === currentUserName || task.assignee === currentUserName;
+                    const matchByName = 
+                        (task.assignee_name && task.assignee_name.includes(currentUserName)) ||
+                        (task.assignee && task.assignee.includes(currentUserName));
                     const isMatch = matchById || matchByName;
                     
                     console.log(`  タスク: "${task.text}" / assignee: "${task.assignee}" / assignee_name: "${task.assignee_name}" / 一致: ${isMatch}`);
@@ -655,10 +657,12 @@
                 console.log('  現在のUser Name:', currentUserName);
                 console.log('  全メンション数:', filtered.length);
                 
-                // Slack User ID または ユーザー名で比較
+                // Slack User ID または ユーザー名で比較（部分一致も許容）
                 filtered = filtered.filter(mention => {
                     const matchById = currentSlackUserId && mention.mentioned_user === currentSlackUserId;
-                    const matchByName = mention.mentioned_user_name === currentUserName || mention.mentioned_user === currentUserName;
+                    const matchByName = 
+                        (mention.mentioned_user_name && mention.mentioned_user_name.includes(currentUserName)) ||
+                        (mention.mentioned_user && mention.mentioned_user.includes(currentUserName));
                     const isMatch = matchById || matchByName;
                     
                     console.log(`  メンション: "${mention.message_text}" / mentioned_user: "${mention.mentioned_user}" / mentioned_user_name: "${mention.mentioned_user_name}" / 一致: ${isMatch}`);
