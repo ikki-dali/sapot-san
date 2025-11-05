@@ -349,48 +349,59 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
 
       console.log(`🔍 行を分析: "${textWithoutPriorityEmoji}" (対象: ${lineMentions.length}人)`);
 
-      // AI機能が有効な場合はタスク判定
+      // AI機能が有効な場合はタスク判定、無効な場合はデフォルトでタスクとして記録
+      let shouldRecord = true;
+      let analysis = { isTask: true, confidence: 100, reason: 'AI機能が無効のため全てのメンションを記録' };
+
       if (isAIEnabled && process.env.AI_AUTO_TASK_ENABLED === 'true') {
         // タスクかどうかを判定（絵文字を除去したテキストで判定）
-        const analysis = await aiService.analyzeTaskRequest(textWithoutPriorityEmoji);
+        analysis = await aiService.analyzeTaskRequest(textWithoutPriorityEmoji);
 
-        // 確信度が70%以上の場合、タスクとして記録
-        if (analysis.isTask && analysis.confidence >= 70) {
+        // 確信度が70%以上の場合のみ記録
+        shouldRecord = analysis.isTask && analysis.confidence >= 70;
+
+        if (shouldRecord) {
           console.log(`✅ タスクと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
-
-          // この行でメンションされた各ユーザーに対して記録
-          for (const mentionedUser of lineMentions) {
-            const recorded = await recordMention({
-              channel,
-              messageTs,
-              mentionedUser,
-              mentionerUser: senderUser,
-              text: textWithoutPriorityEmoji, // 優先度絵文字を除去したテキスト
-              priority: detectedPriority  // 検出した優先度を渡す
-            });
-
-            if (recorded) {
-              totalRecorded++;
-              console.log(`📝 記録完了: ${mentionedUser} <- "${textWithoutPriorityEmoji}"`);
-            }
-          }
-
-          allAnalyses.push({
-            line: textWithoutPriorityEmoji,
-            isTask: true,
-            confidence: analysis.confidence,
-            mentionCount: lineMentions.length,
-            priority: detectedPriority  // 優先度を追加
-          });
         } else {
           console.log(`❌ タスクではないと判定 (確信度: ${analysis.confidence}%): ${analysis.reason}`);
-          allAnalyses.push({
-            line: cleanText,
-            isTask: false,
-            confidence: analysis.confidence,
-            reason: analysis.reason
-          });
         }
+      } else {
+        console.log(`📝 AI機能無効のため、全メンションを記録します`);
+      }
+
+      // メンションを記録（AI判定でタスクと判定された場合、またはAI無効の場合）
+      if (shouldRecord) {
+        // この行でメンションされた各ユーザーに対して記録
+        for (const mentionedUser of lineMentions) {
+          const recorded = await recordMention({
+            channel,
+            messageTs,
+            mentionedUser,
+            mentionerUser: senderUser,
+            text: textWithoutPriorityEmoji, // 優先度絵文字を除去したテキスト
+            priority: detectedPriority  // 検出した優先度を渡す
+          });
+
+          if (recorded) {
+            totalRecorded++;
+            console.log(`📝 記録完了: ${mentionedUser} <- "${textWithoutPriorityEmoji}"`);
+          }
+        }
+
+        allAnalyses.push({
+          line: textWithoutPriorityEmoji,
+          isTask: true,
+          confidence: analysis.confidence,
+          mentionCount: lineMentions.length,
+          priority: detectedPriority  // 優先度を追加
+        });
+      } else {
+        allAnalyses.push({
+          line: cleanText,
+          isTask: false,
+          confidence: analysis.confidence,
+          reason: analysis.reason
+        });
       }
     }
 
