@@ -297,6 +297,126 @@ app.command('/task-list', async ({ command, ack, client }) => {
 });
 
 // ===============================
+// 2-2. 自分のタスクを表示するコマンド
+// ===============================
+app.command('/my-task', async ({ command, ack, client }) => {
+  await ack();
+
+  try {
+    // 現在のユーザーが担当しているタスクのみを取得
+    const userTasks = await taskService.getTasks({
+      status: 'open',
+      assignee: command.user_id
+    });
+
+    if (userTasks.length === 0) {
+      await client.chat.postEphemeral({
+        channel: command.channel_id,
+        user: command.user_id,
+        text: 'あなたが担当している未完了のタスクはありません！'
+      });
+      return;
+    }
+
+    // 優先度順にソート（1=高, 2=中, 3=低）
+    const sortedTasks = userTasks.sort((a, b) => {
+      const priorityA = a.priority || 2;
+      const priorityB = b.priority || 2;
+      return priorityA - priorityB;
+    });
+
+    // Block Kitでタスクリストを作成
+    const blocks = [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: '📋 あなたのタスク一覧'
+        }
+      },
+      {
+        type: 'divider'
+      }
+    ];
+
+    sortedTasks.forEach(task => {
+      const createdDate = new Date(task.created_at).toLocaleDateString('ja-JP');
+      const taskPriority = task.priority || 2;
+
+      let taskText = `${getPriorityEmoji(taskPriority)} *${task.text}*\n`;
+      taskText += `作成日: ${createdDate} | 優先度: ${getPriorityLabel(taskPriority)}`;
+
+      // 期限がある場合は表示
+      if (task.due_date) {
+        const dueDate = new Date(task.due_date).toLocaleDateString('ja-JP', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Tokyo'
+        });
+        taskText += `\n期限: ${dueDate}`;
+      }
+
+      // 要約がある場合は表示
+      if (task.summary) {
+        const truncatedSummary = task.summary.length > 100
+          ? task.summary.substring(0, 100) + '...'
+          : task.summary;
+        taskText += `\n\n_📝 要約: ${truncatedSummary}_`;
+      }
+
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: taskText
+        },
+        accessory: {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: '✅ 完了'
+          },
+          style: 'primary',
+          action_id: `complete_task_${task.task_id}`,
+          value: task.task_id
+        }
+      });
+
+      blocks.push({
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `タスクID: \`${task.task_id}\``
+          }
+        ]
+      });
+
+      blocks.push({
+        type: 'divider'
+      });
+    });
+
+    await client.chat.postEphemeral({
+      channel: command.channel_id,
+      user: command.user_id,
+      text: '📋 あなたのタスク一覧',
+      blocks: blocks
+    });
+  } catch (error) {
+    console.error('自分のタスク一覧表示エラー:', error);
+    await client.chat.postEphemeral({
+      channel: command.channel_id,
+      user: command.user_id,
+      text: `❌ エラーが発生しました: ${error.message}`
+    });
+  }
+});
+
+// ===============================
 // 3. タスク完了コマンド
 // ===============================
 app.command('/task-done', async ({ command, ack, client }) => {
@@ -507,6 +627,23 @@ async function handleTaskRequest(client, event, cleanText, intentResult) {
     return;
   }
 
+  // 元のメッセージから他のユーザーへのメンションを検出（担当者決定用）
+  const mentionRegex = /<@([A-Z0-9]+)>/g;
+  const mentions = [...event.text.matchAll(mentionRegex)];
+
+  // ボット自身のIDを取得
+  const botUserId = (await client.auth.test()).user_id;
+
+  // ボット以外へのメンションを抽出
+  const otherUserMentions = mentions
+    .map(m => m[1])
+    .filter(userId => userId !== botUserId);
+
+  // 担当者を決定: 他のユーザーへのメンションがあればその人、なければ自分
+  const assignee = otherUserMentions.length > 0 ? otherUserMentions[0] : event.user;
+
+  console.log(`👤 担当者決定: <@${assignee}> (他メンション: ${otherUserMentions.length}件)`);
+
   // 絵文字から優先度を検出（🔴=高, 🟡=中, 🟢=低）
   // Slackでは絵文字が :red_circle: のようなコードになるため、両方チェック
   console.log(`🔍 優先度検出デバッグ: cleanText = "${cleanText}"`);
@@ -535,13 +672,13 @@ async function handleTaskRequest(client, event, cleanText, intentResult) {
     channel: event.channel,
     messageTs: event.ts,
     createdBy: event.user,
-    assignee: event.user,
+    assignee: assignee,
     dueDate: taskInfo.dueDate ? new Date(taskInfo.dueDate) : null,
     priority: finalPriority
   });
 
   // タスク作成完了を通知
-  let notificationText = `✅ タスクを作成しました！\n\n*タスクID:* ${newTask.task_id}\n*内容:* ${taskInfo.title}\n*担当:* <@${event.user}>\n*優先度:* ${getPriorityEmoji(finalPriority)} ${getPriorityLabel(finalPriority)}`;
+  let notificationText = `✅ タスクを作成しました！\n\n*タスクID:* ${newTask.task_id}\n*内容:* ${taskInfo.title}\n*担当:* <@${assignee}>\n*優先度:* ${getPriorityEmoji(finalPriority)} ${getPriorityLabel(finalPriority)}`;
 
   if (taskInfo.dueDate) {
     const dueDateStr = new Date(taskInfo.dueDate).toLocaleDateString('ja-JP', {
