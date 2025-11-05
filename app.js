@@ -1255,17 +1255,14 @@ app.event('message', async ({ event, client }) => {
       if (nonBotMentions.length > 0) {
         console.log('🤖 AI分析を開始...');
 
-        // メッセージ内のメンションIDをユーザー名に置換
-        const cleanMessageText = await replaceMentionsWithNames(event.text, client);
-
-        // AI分析してタスク判定
+        // AI分析してタスク判定（元のテキストで分析）
         const analysis = await unrepliedService.analyzeMentionAndRecord({
-          text: cleanMessageText,
+          text: event.text,
           channel: event.channel,
           messageTs: event.ts,
           mentionedUsers: nonBotMentions,
           senderUser: event.user
-        }, isAIEnabled);
+        }, isAIEnabled, client);
 
         console.log('📊 AI分析結果:', analysis);
 

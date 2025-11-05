@@ -1,6 +1,7 @@
 const { supabase } = require('../db/connection');
 // taskServiceは循環依存を避けるため、使用箇所で遅延読み込み
 const aiService = require('./aiService');
+const { replaceMentionsWithNames } = require('../utils/helpers');
 
 /**
  * メンションを記録
@@ -288,9 +289,10 @@ async function getUnrepliedStats() {
  * メンションメッセージをAI分析して、タスクと判定されたら記録
  * @param {Object} messageData - メッセージデータ
  * @param {boolean} isAIEnabled - AI機能が有効かどうか
+ * @param {Object} slackClient - Slack APIクライアント
  * @returns {Promise<Object|null>} 分析結果と記録結果
  */
-async function analyzeMentionAndRecord(messageData, isAIEnabled) {
+async function analyzeMentionAndRecord(messageData, isAIEnabled, slackClient) {
   try {
     const { text, channel, messageTs, mentionedUsers, senderUser } = messageData;
 
@@ -371,6 +373,27 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
 
       // メンションを記録（AI判定でタスクと判定された場合、またはAI無効の場合）
       if (shouldRecord) {
+        // メンション置換したテキストを取得
+        let displayText = textWithoutPriorityEmoji;
+        if (slackClient) {
+          try {
+            displayText = await replaceMentionsWithNames(line, slackClient);
+            // 優先度絵文字も除去
+            displayText = displayText
+              .replace(/🔴/g, '')
+              .replace(/:red_circle:/g, '')
+              .replace(/🟡/g, '')
+              .replace(/:yellow_circle:/g, '')
+              .replace(/:large_yellow_circle:/g, '')
+              .replace(/🟢/g, '')
+              .replace(/:green_circle:/g, '')
+              .replace(/:large_green_circle:/g, '')
+              .trim();
+          } catch (err) {
+            console.error('⚠️ メンション置換エラー:', err.message);
+          }
+        }
+
         // この行でメンションされた各ユーザーに対して記録
         for (const mentionedUser of lineMentions) {
           const recorded = await recordMention({
@@ -378,18 +401,18 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled) {
             messageTs,
             mentionedUser,
             mentionerUser: senderUser,
-            text: textWithoutPriorityEmoji, // 優先度絵文字を除去したテキスト
+            text: displayText, // メンション置換済みのテキスト
             priority: detectedPriority  // 検出した優先度を渡す
           });
 
           if (recorded) {
             totalRecorded++;
-            console.log(`📝 記録完了: ${mentionedUser} <- "${textWithoutPriorityEmoji}"`);
+            console.log(`📝 記録完了: ${mentionedUser} <- "${displayText}"`);
           }
         }
 
         allAnalyses.push({
-          line: textWithoutPriorityEmoji,
+          line: displayText,
           isTask: true,
           confidence: analysis.confidence,
           mentionCount: lineMentions.length,
