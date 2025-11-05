@@ -1,3 +1,5 @@
+const logger = require('./logger');
+
 /**
  * メッセージ内のSlackメンションIDをユーザー名に置換
  * @param {string} text - 元のメッセージテキスト（例: "<@U09CAH6FZPW> サポ田さんの確認お願いします。"）
@@ -7,38 +9,78 @@
 async function replaceMentionsWithNames(text, client) {
   if (!text) return text;
 
-  // <@U12345> のようなメンションを抽出
-  const mentionRegex = /<@([A-Z0-9]+)>/g;
-  const matches = [...text.matchAll(mentionRegex)];
-
-  if (matches.length === 0) {
-    return text; // メンションがない場合はそのまま返す
-  }
+  logger.info('🔄 メンション置換を開始', { originalText: text.substring(0, 100) });
 
   let replacedText = text;
 
-  // 各メンションIDをユーザー名に置換
-  for (const match of matches) {
+  // 1. ユーザーメンション <@U12345> を処理
+  const mentionRegex = /<@([A-Z0-9]+)>/g;
+  const mentions = [...text.matchAll(mentionRegex)];
+
+  if (mentions.length > 0) {
+    logger.info(`👤 ${mentions.length}件のユーザーメンションを検出`);
+  }
+
+  for (const match of mentions) {
     const userId = match[1];
     const mentionTag = match[0]; // <@U12345>
 
     try {
       // Slack APIでユーザー情報を取得
       const userInfo = await client.users.info({ user: userId });
-      
+
       if (userInfo.ok && userInfo.user) {
         // 実名（real_name）または表示名（display_name）を使用
-        const userName = userInfo.user.profile.real_name || 
-                        userInfo.user.profile.display_name || 
+        const userName = userInfo.user.profile.real_name ||
+                        userInfo.user.profile.display_name ||
                         userInfo.user.name;
-        
+
+        logger.success(`✅ メンション置換: ${mentionTag} → @${userName}`);
+
         // メンションを @ユーザー名 に置換
         replacedText = replacedText.replace(mentionTag, `@${userName}`);
       }
     } catch (error) {
-      console.error(`ユーザー情報取得エラー (${userId}):`, error.message);
+      logger.failure(`ユーザー情報取得エラー (${userId})`, { error: error.message });
       // エラーの場合はIDのまま残す
     }
+  }
+
+  // 2. ユーザーグループメンション <!subteam^S12345> を処理
+  const subteamRegex = /<!subteam\^([A-Z0-9]+)(\|[^>]+)?>/g;
+  const subteamMentions = [...text.matchAll(subteamRegex)];
+
+  if (subteamMentions.length > 0) {
+    logger.info(`👥 ${subteamMentions.length}件のユーザーグループメンションを検出`);
+  }
+
+  for (const match of subteamMentions) {
+    const subteamId = match[1];
+    const subteamTag = match[0]; // <!subteam^S12345>
+
+    try {
+      // Slack APIでユーザーグループ情報を取得
+      const subteamInfo = await client.usergroups.info({ usergroup: subteamId });
+
+      if (subteamInfo.ok && subteamInfo.usergroup) {
+        const groupName = subteamInfo.usergroup.handle || subteamInfo.usergroup.name;
+
+        logger.success(`✅ グループメンション置換: ${subteamTag} → @${groupName}`);
+
+        // メンションを @グループ名 に置換
+        replacedText = replacedText.replace(subteamTag, `@${groupName}`);
+      }
+    } catch (error) {
+      logger.failure(`ユーザーグループ情報取得エラー (${subteamId})`, { error: error.message });
+      // エラーの場合はIDのまま残す
+    }
+  }
+
+  if (replacedText !== text) {
+    logger.success('🎉 メンション置換完了', {
+      before: text.substring(0, 50),
+      after: replacedText.substring(0, 50)
+    });
   }
 
   return replacedText;
@@ -63,19 +105,22 @@ async function replaceChannelIdsWithNames(text, client) {
 
   let replacedText = text;
 
+  logger.info(`📺 ${matches.length}件のチャンネルメンションを検出`);
+
   for (const match of matches) {
     const channelId = match[1];
     const channelTag = match[0];
 
     try {
       const channelInfo = await client.conversations.info({ channel: channelId });
-      
+
       if (channelInfo.ok && channelInfo.channel) {
         const channelName = channelInfo.channel.name;
+        logger.success(`✅ チャンネルメンション置換: ${channelTag} → #${channelName}`);
         replacedText = replacedText.replace(channelTag, `#${channelName}`);
       }
     } catch (error) {
-      console.error(`チャンネル情報取得エラー (${channelId}):`, error.message);
+      logger.failure(`チャンネル情報取得エラー (${channelId})`, { error: error.message });
     }
   }
 
