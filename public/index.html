@@ -546,13 +546,18 @@
 
             // My taskフィルター
             if (taskFilters.myTaskOnly) {
-                const token = localStorage.getItem('authToken');
-                // トークンからユーザーIDを取得する必要があるため、簡易的に実装
-                // 実際のユーザーIDはauth APIから取得した情報を使う必要がある
+                const currentSlackUserId = localStorage.getItem('slackUserId');
+                console.log('🔍 My Task フィルター有効');
+                console.log('  現在のUser ID:', currentSlackUserId);
+                console.log('  全タスク数:', filtered.length);
+                
+                // Slack User IDで比較
                 filtered = filtered.filter(task => {
-                    const currentUserName = localStorage.getItem('userName');
-                    return task.assignee_name === currentUserName || task.assignee === currentUserName;
+                    console.log(`  タスク: "${task.text}" / assignee: "${task.assignee}" / 一致: ${task.assignee === currentSlackUserId}`);
+                    return task.assignee === currentSlackUserId;
                 });
+                
+                console.log('  フィルター後:', filtered.length, '件');
             }
 
             // タグフィルター
@@ -635,10 +640,18 @@
 
             // My taskフィルター
             if (unrepliedFilters.myTaskOnly) {
-                const currentUserName = localStorage.getItem('userName');
-                filtered = filtered.filter(mention =>
-                    mention.mentioned_user_name === currentUserName || mention.mentioned_user === currentUserName
-                );
+                const currentSlackUserId = localStorage.getItem('slackUserId');
+                console.log('🔍 未返信 My Task フィルター有効');
+                console.log('  現在のUser ID:', currentSlackUserId);
+                console.log('  全メンション数:', filtered.length);
+                
+                // Slack User IDで比較
+                filtered = filtered.filter(mention => {
+                    console.log(`  メンション: "${mention.message_text}" / mentioned_user: "${mention.mentioned_user}" / 一致: ${mention.mentioned_user === currentSlackUserId}`);
+                    return mention.mentioned_user === currentSlackUserId;
+                });
+                
+                console.log('  フィルター後:', filtered.length, '件');
             }
 
             // 未返信メンション一覧を再描画
@@ -688,6 +701,7 @@
 
         // My taskボタン切り替え（タスク）
         function toggleTaskMyTask() {
+            alert('My taskボタンがクリックされました！');
             taskFilters.myTaskOnly = !taskFilters.myTaskOnly;
             const btn = document.getElementById('taskMyTaskBtn');
             if (taskFilters.myTaskOnly) {

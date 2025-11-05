@@ -210,6 +210,7 @@
                     // トークンとユーザー情報を保存
                     localStorage.setItem('authToken', result.data.token);
                     localStorage.setItem('userName', result.data.user.name);
+                    localStorage.setItem('slackUserId', result.data.user.slack_user_id);
 
                     // ローディング画面を表示
                     document.getElementById('loadingScreen').classList.add('active');
