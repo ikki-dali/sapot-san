@@ -8,6 +8,7 @@ const aiService = require('./src/services/aiService');
 const unrepliedService = require('./src/services/unrepliedService');
 const logger = require('./src/utils/logger');
 const { handleError } = require('./src/utils/errorHandler');
+const { replaceMentionsWithNames, replaceChannelIdsWithNames } = require('./src/utils/helpers');
 
 // ===============================
 // グローバルエラーハンドラー
@@ -140,9 +141,12 @@ app.event('reaction_added', async ({ event, client }) => {
         }
       }
 
+      // メッセージ内のメンションIDをユーザー名に置換
+      const taskText = await replaceMentionsWithNames(message.text, client);
+
       // タスクをデータベースに保存
       const newTask = await taskService.createTask({
-        text: message.text,
+        text: taskText,
         channel: event.item.channel,
         messageTs: event.item.ts,
         createdBy: event.user,
@@ -1251,9 +1255,12 @@ app.event('message', async ({ event, client }) => {
       if (nonBotMentions.length > 0) {
         console.log('🤖 AI分析を開始...');
 
+        // メッセージ内のメンションIDをユーザー名に置換
+        const cleanMessageText = await replaceMentionsWithNames(event.text, client);
+
         // AI分析してタスク判定
         const analysis = await unrepliedService.analyzeMentionAndRecord({
-          text: event.text,
+          text: cleanMessageText,
           channel: event.channel,
           messageTs: event.ts,
           mentionedUsers: nonBotMentions,
