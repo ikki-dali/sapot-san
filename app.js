@@ -1319,11 +1319,15 @@ app.event('message', async ({ event, client }) => {
       if (nonBotMentions.length > 0) {
         console.log('🤖 AI分析を開始...');
 
+        // スレッド内のメッセージの場合は、スレッドの親tsを使用
+        // これにより、返信検知で正しく一致させることができる
+        const messageTs = event.thread_ts || event.ts;
+
         // AI分析してタスク判定（元のテキストで分析）
         const analysis = await unrepliedService.analyzeMentionAndRecord({
           text: event.text,
           channel: event.channel,
-          messageTs: event.ts,
+          messageTs: messageTs,
           mentionedUsers: nonBotMentions,
           senderUser: event.user
         }, isAIEnabled, client);
