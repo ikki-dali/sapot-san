@@ -542,7 +542,66 @@ app.command('/remind-sapota', async ({ command, ack, client }) => {
 });
 
 // ===============================
-// 6. メンションを検知（AI自動タスク化）
+// 6. Google Calendar連携コマンド
+// ===============================
+app.command('/calendar-connect', async ({ command, ack, client }) => {
+  await ack();
+
+  try {
+    const userId = command.user_id;
+    const apiPort = process.env.API_PORT || 3002;
+    const authUrl = `http://localhost:${apiPort}/api/google-calendar/auth?slack_user_id=${userId}`;
+
+    await client.chat.postEphemeral({
+      channel: command.channel_id,
+      user: userId,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: '📅 *Google Calendar連携*\n\nタスクをGoogleカレンダーに自動登録できるようになります！'
+          }
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: '以下のリンクをクリックして、Googleアカウントで認証してください：'
+          }
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `&lt;${authUrl}|🔗 Google Calendar連携を開始する&gt;`
+          }
+        },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: '💡 認証後、タスクに期限を設定すると自動でカレンダーに登録されます'
+            }
+          ]
+        }
+      ]
+    });
+
+    logger.info(`Google Calendar連携リンク送信: ${userId}`);
+  } catch (error) {
+    logger.error('Google Calendar連携コマンドエラー:', error);
+    await client.chat.postEphemeral({
+      channel: command.channel_id,
+      user: command.user_id,
+      text: `❌ エラーが発生しました: ${error.message}`
+    });
+  }
+});
+
+// ===============================
+// 7. メンションを検知（AI自動タスク化）
 // ===============================
 app.event('app_mention', async ({ event, client }) => {
   try {
@@ -1221,6 +1280,11 @@ app.event('message', async ({ event, client }) => {
           event.user
         );
       }
+
+      // スレッド返信の場合は、新しい未返信レコードを作成しない
+      // （返信は元の会話への応答であり、新しいタスクではない）
+      console.log('✅ スレッド返信の処理完了（メンション記録はスキップ）');
+      return;
     }
 
     // メッセージテキストがない場合はスキップ
