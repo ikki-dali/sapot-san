@@ -120,49 +120,7 @@
             background-color: #e9ecef;
         }
 
-        /* 機能カード */
-        .feature-card {
-            transition: all 0.3s;
-            border: none;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            height: 100%;
-        }
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
-        }
-        .feature-card .card-body {
-            padding: 24px;
-        }
-        .feature-card h5 {
-            font-size: 1.25rem;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .feature-card .feature-icon {
-            font-size: 2rem;
-        }
-        .feature-card .feature-description {
-            color: #6c757d;
-            font-size: 0.9rem;
-            margin: 12px 0;
-            min-height: 40px;
-        }
-        .feature-card .feature-stats {
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid #e9ecef;
-        }
-        .feature-card .feature-stats small {
-            display: block;
-            color: #6c757d;
-            margin-bottom: 4px;
-        }
-        .feature-card .quick-action {
-            margin-top: 12px;
-        }
+
 
         /* ローディング画面 */
         #loadingScreen {
@@ -328,162 +286,6 @@
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-chat-dots"></i> 未返信</h5>
                         <h2 id="unrepliedMentions">-</h2>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 機能一覧 -->
-        <div class="mb-4">
-            <h4 class="mb-3"><i class="bi bi-grid-3x3-gap-fill"></i> 機能一覧</h4>
-            <div class="row">
-                <!-- タスク管理 -->
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card feature-card">
-                        <div class="card-body">
-                            <h5>
-                                <span class="feature-icon">📝</span>
-                                タスク管理
-                            </h5>
-                            <span class="badge bg-success">稼働中</span>
-                            <p class="feature-description">
-                                Slackのリアクション（✅または📝）でタスクを作成。期限管理、担当者設定、優先度の自動判定に対応。
-                            </p>
-                            <div class="feature-stats">
-                                <small><i class="bi bi-check-circle"></i> スラッシュコマンド利用可能</small>
-                                <small><i class="bi bi-calendar-event"></i> 期限リマインド対応</small>
-                            </div>
-                            <div class="quick-action">
-                                <a href="#taskList" class="btn btn-sm btn-outline-primary w-100">
-                                    タスク一覧を見る
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 未返信メンション -->
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card feature-card">
-                        <div class="card-body">
-                            <h5>
-                                <span class="feature-icon">💬</span>
-                                未返信検知
-                            </h5>
-                            <span class="badge bg-warning text-dark">自動監視中</span>
-                            <p class="feature-description">
-                                メンションされたが返信がないメッセージを自動検知。重要な依頼を見逃しません。
-                            </p>
-                            <div class="feature-stats">
-                                <small><i class="bi bi-clock-history"></i> 現在 <strong id="unrepliedCount">-</strong> 件の未返信</small>
-                                <small><i class="bi bi-bell"></i> 自動通知機能あり</small>
-                            </div>
-                            <div class="quick-action">
-                                <a href="#unrepliedList" class="btn btn-sm btn-outline-warning w-100">
-                                    未返信を確認
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Googleカレンダー連携 -->
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card feature-card">
-                        <div class="card-body">
-                            <h5>
-                                <span class="feature-icon">📅</span>
-                                カレンダー連携
-                            </h5>
-                            <span class="badge bg-info text-dark">設定可能</span>
-                            <p class="feature-description">
-                                Googleカレンダーと連携してタスクを自動同期。期限のあるタスクがカレンダーに表示されます。
-                            </p>
-                            <div class="feature-stats">
-                                <small><i class="bi bi-people"></i> <strong id="calendarConnectedCount">-</strong> 名が連携済み</small>
-                                <small><i class="bi bi-link-45deg"></i> OAuth 2.0で安全に接続</small>
-                            </div>
-                            <div class="quick-action">
-                                <a href="calendar-settings.html" class="btn btn-sm btn-outline-info w-100">
-                                    カレンダー設定
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- AI機能 -->
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card feature-card">
-                        <div class="card-body">
-                            <h5>
-                                <span class="feature-icon">🤖</span>
-                                AI機能
-                            </h5>
-                            <span class="badge bg-success">有効</span>
-                            <p class="feature-description">
-                                OpenAI GPTによるスレッド要約、タスク優先度の自動判定、内容の整形に対応。
-                            </p>
-                            <div class="feature-stats">
-                                <small><i class="bi bi-cpu"></i> GPT-4o使用</small>
-                                <small><i class="bi bi-lightning-charge"></i> リアルタイム処理</small>
-                            </div>
-                            <div class="quick-action">
-                                <button class="btn btn-sm btn-outline-success w-100" disabled>
-                                    自動実行中
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- メンバー管理 -->
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card feature-card">
-                        <div class="card-body">
-                            <h5>
-                                <span class="feature-icon">👥</span>
-                                メンバー管理
-                            </h5>
-                            <span class="badge bg-primary">利用可能</span>
-                            <p class="feature-description">
-                                チームメンバーの一覧表示、部署管理、カレンダー連携状況の確認が可能。
-                            </p>
-                            <div class="feature-stats">
-                                <small><i class="bi bi-person-check"></i> 登録メンバー数: <strong id="totalMembersCount">-</strong> 名</small>
-                                <small><i class="bi bi-building"></i> 部署別フィルター対応</small>
-                            </div>
-                            <div class="quick-action">
-                                <a href="members.html" class="btn btn-sm btn-outline-primary w-100">
-                                    メンバー一覧
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- タグ機能 -->
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card feature-card">
-                        <div class="card-body">
-                            <h5>
-                                <span class="feature-icon">🏷️</span>
-                                タグ機能
-                            </h5>
-                            <span class="badge bg-secondary">利用可能</span>
-                            <p class="feature-description">
-                                タスクにカラータグを付けて分類。プロジェクトやカテゴリごとに整理できます。
-                            </p>
-                            <div class="feature-stats">
-                                <small><i class="bi bi-tag"></i> カスタムタグ作成可能</small>
-                                <small><i class="bi bi-funnel"></i> タグでフィルタリング</small>
-                            </div>
-                            <div class="quick-action">
-                                <button class="btn btn-sm btn-outline-secondary w-100" onclick="alert('タスク一覧でタグフィルターをご利用ください')">
-                                    タグで絞り込み
-                                </button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -684,8 +486,7 @@
                     document.getElementById('mediumPriority').textContent = priority.medium;
                     document.getElementById('lowPriority').textContent = priority.low;
 
-                    // 機能カードの動的な値を更新
-                    document.getElementById('unrepliedCount').textContent = unreplied ? unreplied.unreplied : 0;
+
                 }
             } catch (error) {
                 console.error('統計情報の読み込みエラー:', error);
@@ -1098,20 +899,7 @@
             }, 300);
         }
 
-        // 機能カードの統計情報を更新
-        async function updateFeatureCardStats() {
-            try {
-                // メンバー数とカレンダー連携数を取得
-                const response = await fetch(`${API_URL}/users?includeCalendar=true`);
-                const result = await response.json();
 
-                if (result.success) {
-                    const totalMembers = result.data.length;
-                    const connectedMembers = result.data.filter(u => u.hasCalendar).length;
-
-                    document.getElementById('totalMembersCount').textContent = totalMembers;
-                    document.getElementById('calendarConnectedCount').textContent = connectedMembers;
-                }
             } catch (error) {
                 console.error('機能カード統計情報の読み込みエラー:', error);
             }
@@ -1137,8 +925,7 @@
 
                 // 【段階2】残りのデータをバックグラウンドで読み込み
                 loadChannels().then(() => updateProgress(80, ''));
-                loadTags().then(() => updateProgress(85, ''));
-                updateFeatureCardStats().then(() => updateProgress(90, ''));
+                loadTags().then(() => updateProgress(90, ''));
                 loadUnrepliedMentions().then(() => updateProgress(100, ''));
 
             } catch (error) {
@@ -1152,7 +939,6 @@
                 loadStats();
                 loadTasks();
                 loadUnrepliedMentions();
-                updateFeatureCardStats();
             }, 30000);
         });
     </script>
