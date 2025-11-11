@@ -899,12 +899,6 @@
             }, 300);
         }
 
-
-            } catch (error) {
-                console.error('機能カード統計情報の読み込みエラー:', error);
-            }
-        }
-
         // ページ読み込み時に認証チェック
         checkAuth().then(async isAuthenticated => {
             if (!isAuthenticated) return;
