@@ -443,12 +443,18 @@
 
                 const joinDate = new Date(member.created_at).toLocaleDateString('ja-JP');
 
+                // プロフィール画像またはアイコンを表示
+                const profileImage = member.google_profile_picture
+                    ? `<img src="${escapeHtml(member.google_profile_picture)}" alt="${escapeHtml(member.name)}"
+                           style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 3px solid #0d6efd;">`
+                    : `<i class="bi bi-person-circle text-primary" style="font-size: 3rem;"></i>`;
+
                 return `
                     <div class="col-md-6 col-lg-4 mb-3">
                         <div class="card member-card h-100">
                             <div class="card-body">
                                 <div class="d-flex align-items-start mb-3">
-                                    <i class="bi bi-person-circle text-primary" style="font-size: 3rem;"></i>
+                                    ${profileImage}
                                     <div class="ms-3 flex-grow-1">
                                         <h5 class="mb-1">${escapeHtml(member.name)}</h5>
                                         <div class="text-muted small">

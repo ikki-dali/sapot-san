@@ -12,7 +12,7 @@ async function getAllUsers(req, res) {
     // ユーザー一覧を取得
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, slack_user_id, name, email, department, created_at')
+      .select('id, slack_user_id, name, email, department, google_profile_picture, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -112,7 +112,7 @@ async function updateUser(req, res) {
       .from('users')
       .update(updateData)
       .eq('id', userId)
-      .select('id, slack_user_id, name, email, department, created_at')
+      .select('id, slack_user_id, name, email, department, google_profile_picture, created_at')
       .single();
 
     if (error) {
