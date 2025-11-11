@@ -8,7 +8,7 @@ const aiService = require('./src/services/aiService');
 const unrepliedService = require('./src/services/unrepliedService');
 const logger = require('./src/utils/logger');
 const { handleError } = require('./src/utils/errorHandler');
-const { replaceMentionsWithNames, replaceChannelIdsWithNames } = require('./src/utils/helpers');
+const { replaceMentionsWithNames, replaceChannelIdsWithNames, extractDueDateFromText } = require('./src/utils/helpers');
 
 // ===============================
 // グローバルエラーハンドラー
@@ -144,6 +144,9 @@ app.event('reaction_added', async ({ event, client }) => {
       // メッセージ内のメンションIDをユーザー名に置換
       const taskText = await replaceMentionsWithNames(message.text, client);
 
+      // メッセージから期限日付を抽出
+      const dueDate = extractDueDateFromText(message.text);
+
       // タスクをデータベースに保存
       const newTask = await taskService.createTask({
         text: taskText,
@@ -152,7 +155,8 @@ app.event('reaction_added', async ({ event, client }) => {
         createdBy: event.user,
         assignee: message.user, // メッセージの送信者を担当者に
         priority: priority,
-        summary: summary
+        summary: summary,
+        dueDate: dueDate // 抽出した期限を設定
       });
 
       // タスク作成を通知
@@ -160,6 +164,18 @@ app.event('reaction_added', async ({ event, client }) => {
 
       if (summary) {
         notificationText += `\n\n*📝 要約:*\n${summary}`;
+      }
+
+      if (dueDate) {
+        const dueDateStr = dueDate.toLocaleString('ja-JP', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Tokyo'
+        });
+        notificationText += `\n*📅 期限:* ${dueDateStr}`;
       }
 
       await client.chat.postMessage({

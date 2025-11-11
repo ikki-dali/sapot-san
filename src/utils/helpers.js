@@ -166,7 +166,73 @@ async function replaceChannelIdsWithNames(text, client) {
   return replacedText;
 }
 
+/**
+ * メッセージテキストから日付を抽出して期限を設定
+ * サポートする形式:
+ * - "11/18" → 今年の11月18日
+ * - "2024/11/18" → 2024年11月18日
+ * - "11月18日" → 今年の11月18日
+ * - "明日" → 翌日
+ * - "来週" → 7日後
+ * @param {string} text - メッセージテキスト
+ * @returns {Date|null} - 抽出された期限日時、なければnull
+ */
+function extractDueDateFromText(text) {
+  if (!text) return null;
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  // パターン1: "11/18" または "2024/11/18"
+  const slashDateMatch = text.match(/(\d{4}\/)?(\d{1,2})\/(\d{1,2})/);
+  if (slashDateMatch) {
+    const year = slashDateMatch[1] ? parseInt(slashDateMatch[1].replace('/', '')) : currentYear;
+    const month = parseInt(slashDateMatch[2]);
+    const day = parseInt(slashDateMatch[3]);
+    
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const dueDate = new Date(year, month - 1, day, 23, 59, 59);
+      logger.info(`📅 日付を検出: ${slashDateMatch[0]} → ${dueDate.toLocaleString('ja-JP')}`);
+      return dueDate;
+    }
+  }
+
+  // パターン2: "11月18日" または "11月18日まで"
+  const japDateMatch = text.match(/(\d{1,2})月(\d{1,2})日/);
+  if (japDateMatch) {
+    const month = parseInt(japDateMatch[1]);
+    const day = parseInt(japDateMatch[2]);
+    
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const dueDate = new Date(currentYear, month - 1, day, 23, 59, 59);
+      logger.info(`📅 日付を検出: ${japDateMatch[0]} → ${dueDate.toLocaleString('ja-JP')}`);
+      return dueDate;
+    }
+  }
+
+  // パターン3: "明日"
+  if (text.includes('明日')) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(23, 59, 59, 999);
+    logger.info(`📅 相対日付を検出: 明日 → ${tomorrow.toLocaleString('ja-JP')}`);
+    return tomorrow;
+  }
+
+  // パターン4: "来週"
+  if (text.includes('来週')) {
+    const nextWeek = new Date(now);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    nextWeek.setHours(23, 59, 59, 999);
+    logger.info(`📅 相対日付を検出: 来週 → ${nextWeek.toLocaleString('ja-JP')}`);
+    return nextWeek;
+  }
+
+  return null;
+}
+
 module.exports = {
   replaceMentionsWithNames,
   replaceChannelIdsWithNames,
+  extractDueDateFromText,
 };
