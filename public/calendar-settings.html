@@ -8,7 +8,100 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         body {
+            display: flex;
+            min-height: 100vh;
             background-color: #f8f9fa;
+        }
+
+        /* サイドバースタイル */
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 100%);
+            color: white;
+            padding: 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-header h3 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+
+        .sidebar-nav a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .sidebar-nav a:hover,
+        .sidebar-nav a.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .sidebar-nav a i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .user-info:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .user-info i {
+            font-size: 2rem;
+            margin-right: 10px;
+        }
+
+        /* メインコンテンツエリア */
+        .main-content-wrapper {
+            margin-left: 250px;
+            flex: 1;
+            padding: 30px;
+            width: calc(100% - 250px);
         }
         .status-connected {
             color: #28a745;
@@ -23,18 +116,49 @@
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-primary mb-4">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">
-                <i class="bi bi-calendar3"></i> Google Calendar連携
-            </span>
-            <a href="index.html" class="btn btn-light btn-sm">
-                <i class="bi bi-house"></i> ダッシュボードに戻る
-            </a>
+    <!-- サイドバー -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="bi bi-check2-circle"></i> サポ田さん</h3>
+            <small>タスク管理システム</small>
         </div>
-    </nav>
 
-    <div class="container">
+        <nav class="sidebar-nav">
+            <a href="index.html">
+                <i class="bi bi-house-door"></i>
+                <span>ダッシュボード</span>
+            </a>
+            <a href="members.html">
+                <i class="bi bi-people"></i>
+                <span>メンバー管理</span>
+            </a>
+            <a href="calendar-settings.html" class="active">
+                <i class="bi bi-calendar3"></i>
+                <span>カレンダー設定</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="account-settings.html" style="text-decoration: none; color: inherit;">
+                <div class="user-info">
+                    <img id="sidebarUserPicture" src="" alt="プロフィール画像" style="display: none;">
+                    <i class="bi bi-person-circle" id="sidebarUserIcon"></i>
+                    <div>
+                        <div id="sidebarUserName">ゲスト</div>
+                        <small style="opacity: 0.8;" id="sidebarUserDept">-</small>
+                    </div>
+                </div>
+            </a>
+            <button onclick="logout()" class="btn btn-light btn-sm w-100">
+                <i class="bi bi-box-arrow-right"></i> ログアウト
+            </button>
+        </div>
+    </div>
+
+    <!-- メインコンテンツエリア -->
+    <div class="main-content-wrapper">
+
+    <div class="container-fluid">
         <!-- 使い方説明 -->
         <div class="alert alert-info" role="alert">
             <h5 class="alert-heading"><i class="bi bi-info-circle"></i> Google Calendar連携について</h5>
@@ -112,18 +236,16 @@
             </div>
         </div>
     </div>
+    </div><!-- /main-content-wrapper -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 環境に応じてAPI URLを自動設定
         const API_URL = window.location.hostname === 'localhost'
-            ? `http://localhost:${window.location.port}/api`
+            ? 'http://localhost:3002/api'  // APIサーバーは常にport 3002
             : 'https://sapot-san-bot-production.up.railway.app/api';
 
-        // ページ読み込み時
-        document.addEventListener('DOMContentLoaded', () => {
-            checkConnectionStatus();
-        });
+        
 
         // 連携状態を確認
         async function checkConnectionStatus() {
@@ -323,6 +445,58 @@
             document.getElementById('errorMessage').textContent = message;
             showState('error');
         }
+
+        // ログアウト
+        async function logout() {
+            if (!confirm('ログアウトしますか？')) return;
+
+            const token = localStorage.getItem('authToken');
+            try {
+                await fetch(`${API_URL}/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (error) {
+                console.error('ログアウトエラー:', error);
+            }
+
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userName');
+            window.location.href = 'login.html';
+        }
+
+        // サイドバーのユーザー情報を更新
+        async function updateSidebarUserInfo() {
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) return;
+
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('sidebarUserName').textContent = result.data.name || 'ゲスト';
+                    document.getElementById('sidebarUserDept').textContent = result.data.department || '部署未設定';
+                    
+                    // プロフィール画像を表示
+                    if (result.data.google_profile_picture) {
+                        document.getElementById('sidebarUserPicture').src = result.data.google_profile_picture;
+                        document.getElementById('sidebarUserPicture').style.display = 'block';
+                        document.getElementById('sidebarUserIcon').style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('ユーザー情報取得エラー:', error);
+            }
+        }
+
+        // ページ読み込み時にユーザー情報を更新
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSidebarUserInfo();
+            checkConnectionStatus();
+        });
     </script>
 </body>
 </html>

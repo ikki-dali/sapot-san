@@ -13,9 +13,10 @@ const SESSION_EXPIRY_DAYS = 7;
  * @param {string} userData.email - メールアドレス
  * @param {string} userData.name - 名前
  * @param {string} userData.password - パスワード
+ * @param {string} [userData.department] - 所属部署（オプション）
  * @returns {Promise<Object>} 登録されたユーザー情報
  */
-async function registerUser({ slackUserId, email, name, password }) {
+async function registerUser({ slackUserId, email, name, password, department }) {
   try {
     // メールアドレスの重複チェック
     const { data: existingUser } = await supabase
@@ -51,9 +52,10 @@ async function registerUser({ slackUserId, email, name, password }) {
           email: email.toLowerCase(),
           name,
           password_hash: passwordHash,
+          department: department || null,
         },
       ])
-      .select('id, slack_user_id, email, name, created_at')
+      .select('id, slack_user_id, email, name, department, created_at')
       .single();
 
     if (error) {

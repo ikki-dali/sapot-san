@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>メンバー管理 - サポ田さん</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            display: flex;
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+
+        /* サイドバースタイル */
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 100%);
+            color: white;
+            padding: 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-header h3 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+
+        .sidebar-nav a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .sidebar-nav a:hover,
+        .sidebar-nav a.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .sidebar-nav a i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .user-info:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .user-info i {
+            font-size: 2rem;
+            margin-right: 10px;
+        }
+
+        /* メインコンテンツエリア */
+        .main-content {
+            margin-left: 250px;
+            flex: 1;
+            padding: 30px;
+        }
+
+        .member-card {
+            transition: transform 0.2s;
+        }
+
+        .member-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .calendar-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+    <!-- サイドバー -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="bi bi-check2-circle"></i> サポ田さん</h3>
+            <small>タスク管理システム</small>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="index.html">
+                <i class="bi bi-house-door"></i>
+                <span>ダッシュボード</span>
+            </a>
+            <a href="members.html" class="active">
+                <i class="bi bi-people"></i>
+                <span>メンバー管理</span>
+            </a>
+            <a href="calendar-settings.html">
+                <i class="bi bi-calendar3"></i>
+                <span>カレンダー設定</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="account-settings.html" style="text-decoration: none; color: inherit;">
+                <div class="user-info">
+                    <img id="sidebarUserPicture" src="" alt="プロフィール画像" style="display: none;">
+                    <i class="bi bi-person-circle" id="sidebarUserIcon"></i>
+                    <div>
+                        <div id="sidebarUserName">ゲスト</div>
+                        <small style="opacity: 0.8;" id="sidebarUserDept">-</small>
+                    </div>
+                </div>
+            </a>
+            <button onclick="logout()" class="btn btn-light btn-sm w-100">
+                <i class="bi bi-box-arrow-right"></i> ログアウト
+            </button>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-people-fill"></i> メンバー管理</h2>
+            <button class="btn btn-primary" onclick="loadMembers()">
+                <i class="bi bi-arrow-clockwise"></i> 更新
+            </button>
+        </div>
+
+        <!-- フィルターセクション -->
+        <div class="filter-section">
+            <div class="row align-items-end">
+                <div class="col-md-4">
+                    <label for="departmentFilter" class="form-label">
+                        <i class="bi bi-building"></i> 部署でフィルター
+                    </label>
+                    <select class="form-select" id="departmentFilter" onchange="filterMembers()">
+                        <option value="">全ての部署</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="calendarFilter" class="form-label">
+                        <i class="bi bi-calendar-check"></i> カレンダー設定
+                    </label>
+                    <select class="form-select" id="calendarFilter" onchange="filterMembers()">
+                        <option value="">全て</option>
+                        <option value="configured">連携済み</option>
+                        <option value="not-configured">未連携</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex gap-2 align-items-center">
+                        <div>
+                            <strong id="totalMembers">0</strong> 名
+                        </div>
+                        <div class="text-muted">|</div>
+                        <div>
+                            <i class="bi bi-calendar-check text-success"></i>
+                            <strong id="configuredMembers">0</strong> 名
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- メンバー一覧 -->
+        <div id="membersList" class="row">
+            <div class="col-12 text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">読み込み中...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost'
+            ? `http://localhost:${window.location.port}/api`
+            : 'https://sapot-san-bot-production.up.railway.app/api';
+
+        let allMembers = [];
+        let currentUser = null;
+
+        // 認証チェック（最適化版）
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            // ローカルストレージからユーザー情報を取得（高速化）
+            const cachedUser = localStorage.getItem('cachedUserData');
+            if (cachedUser) {
+                try {
+                    currentUser = JSON.parse(cachedUser);
+                    document.getElementById('sidebarUserName').textContent = currentUser.name || 'ゲスト';
+                    document.getElementById('sidebarUserDept').textContent = currentUser.department || '部署未設定';
+                } catch (e) {
+                    console.error('キャッシュ読み込みエラー:', e);
+                }
+            }
+
+            // バックグラウンドで認証チェック
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('cachedUserData');
+                    window.location.href = 'login.html';
+                    return false;
+                }
+
+                currentUser = result.data;
+                localStorage.setItem('cachedUserData', JSON.stringify(currentUser));
+                document.getElementById('sidebarUserName').textContent = currentUser.name || 'ゲスト';
+                document.getElementById('sidebarUserDept').textContent = currentUser.department || '部署未設定';
+                
+                // プロフィール画像を表示
+                if (currentUser.google_profile_picture) {
+                    document.getElementById('sidebarUserPicture').src = currentUser.google_profile_picture;
+                    document.getElementById('sidebarUserPicture').style.display = 'block';
+                    document.getElementById('sidebarUserIcon').style.display = 'none';
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('認証エラー:', error);
+                // エラーでもキャッシュがあれば続行
+                return cachedUser ? true : false;
+            }
+        }
+
+        // ログアウト
+        async function logout() {
+            if (!confirm('ログアウトしますか？')) return;
+
+            const token = localStorage.getItem('authToken');
+            try {
+                await fetch(`${API_URL}/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (error) {
+                console.error('ログアウトエラー:', error);
+            }
+
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userName');
+            window.location.href = 'login.html';
+        }
+
+        // メンバー一覧を読み込む
+        async function loadMembers() {
+            try {
+                // カレンダー情報を含めて取得
+                const response = await fetch(`${API_URL}/users?includeCalendar=true`);
+                const result = await response.json();
+
+                if (result.success) {
+                    allMembers = result.data;
+                    populateDepartmentFilter();
+                    filterMembers();
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('メンバー一覧の読み込みエラー:', error);
+                document.getElementById('membersList').innerHTML =
+                    '<div class="col-12"><p class="text-danger text-center">読み込みエラー</p></div>';
+            }
+        }
+
+        // 部署フィルターを作成
+        function populateDepartmentFilter() {
+            const departments = [...new Set(allMembers.map(m => m.department).filter(d => d))];
+            const select = document.getElementById('departmentFilter');
+
+            // 既存のオプションをクリア（デフォルト以外）
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            departments.sort().forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept;
+                option.textContent = dept;
+                select.appendChild(option);
+            });
+        }
+
+        // フィルタリング
+        function filterMembers() {
+            const deptFilter = document.getElementById('departmentFilter').value;
+            const calFilter = document.getElementById('calendarFilter').value;
+
+            let filtered = allMembers;
+
+            if (deptFilter) {
+                filtered = filtered.filter(m => m.department === deptFilter);
+            }
+
+            if (calFilter === 'configured') {
+                filtered = filtered.filter(m => m.hasCalendar);
+            } else if (calFilter === 'not-configured') {
+                filtered = filtered.filter(m => !m.hasCalendar);
+            }
+
+            renderMembers(filtered);
+        }
+
+        // メンバーカードを描画
+        function renderMembers(members) {
+            const container = document.getElementById('membersList');
+
+            if (members.length === 0) {
+                container.innerHTML = '<div class="col-12"><p class="text-muted text-center">メンバーが見つかりません</p></div>';
+                return;
+            }
+
+            container.innerHTML = members.map(member => {
+                // カレンダー連携状態に基づいて表示
+                const calendarStatus = member.hasCalendar
+                    ? `<span class="badge bg-success calendar-badge">
+                           <i class="bi bi-calendar-check"></i> 連携済み
+                       </span>`
+                    : `<span class="badge bg-secondary calendar-badge">
+                           <i class="bi bi-calendar-x"></i> 未設定
+                       </span>`;
+
+                const joinDate = new Date(member.created_at).toLocaleDateString('ja-JP');
+
+                return `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card member-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-start mb-3">
+                                    <i class="bi bi-person-circle text-primary" style="font-size: 3rem;"></i>
+                                    <div class="ms-3 flex-grow-1">
+                                        <h5 class="mb-1">${escapeHtml(member.name)}</h5>
+                                        <div class="text-muted small">
+                                            <i class="bi bi-slack"></i> ${escapeHtml(member.slack_user_id)}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-2">
+                                    <i class="bi bi-envelope"></i>
+                                    <small class="text-muted">${escapeHtml(member.email)}</small>
+                                </div>
+                                
+                                <div class="mb-2">
+                                    <i class="bi bi-building"></i>
+                                    <strong>${member.department ? escapeHtml(member.department) : '部署未設定'}</strong>
+                                </div>
+                                
+                                <div class="mb-2">
+                                    ${calendarStatus}
+                                </div>
+                                
+                                <div class="text-muted small">
+                                    <i class="bi bi-calendar-plus"></i> 登録日: ${joinDate}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 統計を更新
+        function updateStats() {
+            document.getElementById('totalMembers').textContent = allMembers.length;
+            // カレンダー連携済みのメンバー数をカウント
+            const configuredCount = allMembers.filter(m => m.hasCalendar).length;
+            document.getElementById('configuredMembers').textContent = configuredCount;
+        }
+
+        // HTMLエスケープ
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 初期化（並列実行で高速化）
+        Promise.all([
+            checkAuth(),
+            loadMembers()
+        ]).catch(error => {
+            console.error('初期化エラー:', error);
+        });
+    </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google-calendar/callback'
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3002/api/google-calendar/callback'
   );
 }
 
@@ -25,7 +25,8 @@ function getAuthorizationUrl(slackUserId) {
 
   const scopes = [
     'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/calendar.events'
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/userinfo.profile'  // プロフィール情報のスコープを追加
   ];
 
   const url = oauth2Client.generateAuthUrl({
@@ -50,11 +51,34 @@ async function handleAuthCallback(code, slackUserId) {
 
     // 認証コードをトークンに交換
     const { tokens } = await oauth2Client.getToken(code);
+    
+    // OAuth2クライアントにトークンをセット
+    oauth2Client.setCredentials(tokens);
 
     if (!tokens.refresh_token) {
       logger.warning('リフレッシュトークンが取得できませんでした', { slackUserId });
       // 初回でない場合、refresh_tokenが返されないことがある
       // その場合は既存のトークンを使用
+    }
+
+    // Googleのプロフィール情報を取得
+    let profilePictureUrl = null;
+    try {
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+      const { data } = await oauth2.userinfo.get();
+      profilePictureUrl = data.picture;
+      
+      // usersテーブルにプロフィール画像URLを保存
+      if (profilePictureUrl) {
+        await supabase
+          .from('users')
+          .update({ google_profile_picture: profilePictureUrl })
+          .eq('slack_user_id', slackUserId);
+        
+        logger.success('Googleプロフィール画像を保存しました', { slackUserId, profilePictureUrl });
+      }
+    } catch (error) {
+      logger.warning('プロフィール情報の取得に失敗しました', { slackUserId, error: error.message });
     }
 
     // トークンの有効期限を計算
@@ -244,6 +268,36 @@ async function isCalendarConnected(slackUserId) {
   return tokenData !== null;
 }
 
+/**
+ * ユーザーの使用するカレンダーIDを更新
+ * @param {string} slackUserId - SlackユーザーID
+ * @param {string} calendarId - カレンダーID
+ * @returns {Promise<boolean>} 成功したらtrue
+ */
+async function updateCalendarId(slackUserId, calendarId) {
+  try {
+    const { error } = await supabase
+      .from('google_calendar_tokens')
+      .update({
+        calendar_id: calendarId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('slack_user_id', slackUserId);
+
+    if (error) {
+      logger.failure('カレンダーID更新エラー', { slackUserId, error: error.message });
+      return false;
+    }
+
+    logger.success('カレンダーID更新成功', { slackUserId, calendarId });
+    return true;
+
+  } catch (error) {
+    logger.failure('カレンダーID更新エラー', { slackUserId, error: error.message });
+    return false;
+  }
+}
+
 module.exports = {
   getAuthorizationUrl,
   handleAuthCallback,
@@ -251,5 +305,6 @@ module.exports = {
   refreshAccessToken,
   getAuthenticatedClient,
   disconnectCalendar,
-  isCalendarConnected
+  isCalendarConnected,
+  updateCalendarId
 };

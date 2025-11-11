@@ -8,7 +8,100 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         body {
+            display: flex;
+            min-height: 100vh;
             background-color: #f8f9fa;
+        }
+
+        /* サイドバースタイル */
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 100%);
+            color: white;
+            padding: 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-header h3 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+
+        .sidebar-nav a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .sidebar-nav a:hover,
+        .sidebar-nav a.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .sidebar-nav a i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .user-info:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .user-info i {
+            font-size: 2rem;
+            margin-right: 10px;
+        }
+
+        /* メインコンテンツエリア */
+        .main-content-wrapper {
+            margin-left: 250px;
+            flex: 1;
+            padding: 30px;
+            width: calc(100% - 250px);
         }
         .stat-card {
             transition: transform 0.2s;
@@ -113,30 +206,53 @@
     </div>
 
     <!-- メインコンテンツ -->
-    <div id="mainContent">
-    <nav class="navbar navbar-dark bg-primary mb-4">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">
-                <i class="bi bi-check2-circle"></i> サポ田さん - タスク管理ダッシュボード
-            </span>
-            <div class="d-flex align-items-center gap-3">
-                <span class="text-white me-2">
-                    <i class="bi bi-person-circle"></i> <span id="userName">ゲスト</span>
-                </span>
-                <a href="calendar-settings.html" class="btn btn-light btn-sm">
-                    <i class="bi bi-calendar3"></i> カレンダー設定
-                </a>
-                <button onclick="logout()" class="btn btn-danger btn-sm">
-                    <i class="bi bi-box-arrow-right"></i> ログアウト
-                </button>
-                <span class="text-white">
-                    <i class="bi bi-clock"></i> <span id="currentTime"></span>
-                </span>
-            </div>
+    <div id="mainContent" style="width: 100%;">
+    <!-- サイドバー -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="bi bi-check2-circle"></i> サポ田さん</h3>
+            <small>タスク管理システム</small>
         </div>
-    </nav>
 
-    <div class="container">
+        <nav class="sidebar-nav">
+            <a href="index.html" class="active">
+                <i class="bi bi-house-door"></i>
+                <span>ダッシュボード</span>
+            </a>
+            <a href="members.html">
+                <i class="bi bi-people"></i>
+                <span>メンバー管理</span>
+            </a>
+            <a href="calendar-settings.html">
+                <i class="bi bi-calendar3"></i>
+                <span>カレンダー設定</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="account-settings.html" style="text-decoration: none; color: inherit;">
+                <div class="user-info">
+                    <img id="sidebarUserPicture" src="" alt="プロフィール画像" style="display: none;">
+                    <i class="bi bi-person-circle" id="sidebarUserIcon"></i>
+                    <div>
+                        <div id="sidebarUserName">ゲスト</div>
+                        <small style="opacity: 0.8;" id="sidebarUserDept">-</small>
+                    </div>
+                </div>
+            </a>
+            <div class="text-white mb-2" style="font-size: 0.85rem;">
+                <i class="bi bi-clock"></i> <span id="currentTime"></span>
+            </div>
+            <button onclick="logout()" class="btn btn-light btn-sm w-100">
+                <i class="bi bi-box-arrow-right"></i> ログアウト
+            </button>
+        </div>
+    </div>
+
+    <!-- メインコンテンツエリア -->
+    <div class="main-content-wrapper">
+
+    <div class="container-fluid">
         <!-- 統計カード -->
         <div class="row mb-4">
             <div class="col-md-3">
@@ -296,10 +412,19 @@
                     return false;
                 }
 
-                // ユーザー名を表示
+                // ユーザー名と部署を表示
                 const userName = result.data.name || localStorage.getItem('userName') || 'ゲスト';
-                document.getElementById('userName').textContent = userName;
+                const userDept = result.data.department || '部署未設定';
+                document.getElementById('sidebarUserName').textContent = userName;
+                document.getElementById('sidebarUserDept').textContent = userDept;
                 localStorage.setItem('userName', userName);
+
+                // プロフィール画像を表示
+                if (result.data.google_profile_picture) {
+                    document.getElementById('sidebarUserPicture').src = result.data.google_profile_picture;
+                    document.getElementById('sidebarUserPicture').style.display = 'block';
+                    document.getElementById('sidebarUserIcon').style.display = 'none';
+                }
 
                 return true;
             } catch (error) {
@@ -807,6 +932,7 @@
             }, 30000);
         });
     </script>
+    </div><!-- /main-content-wrapper -->
     </div><!-- /mainContent -->
 </body>
 </html>

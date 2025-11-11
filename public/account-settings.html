@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アカウント設定 - サポ田さん</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            display: flex;
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+
+        /* サイドバースタイル */
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 100%);
+            color: white;
+            padding: 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-header h3 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+
+        .sidebar-nav a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .sidebar-nav a:hover,
+        .sidebar-nav a.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .sidebar-nav a i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .user-info:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .user-info i {
+            font-size: 2rem;
+            margin-right: 10px;
+        }
+
+        /* メインコンテンツエリア */
+        .main-content {
+            margin-left: 250px;
+            flex: 1;
+            padding: 30px;
+        }
+
+        .profile-picture-preview {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #0d6efd;
+            margin-bottom: 20px;
+        }
+
+        .profile-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- サイドバー -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="bi bi-check2-circle"></i> サポ田さん</h3>
+            <small>タスク管理システム</small>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="index.html">
+                <i class="bi bi-house-door"></i>
+                <span>ダッシュボード</span>
+            </a>
+            <a href="members.html">
+                <i class="bi bi-people"></i>
+                <span>メンバー管理</span>
+            </a>
+            <a href="calendar-settings.html">
+                <i class="bi bi-calendar3"></i>
+                <span>カレンダー設定</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="account-settings.html" style="text-decoration: none; color: inherit;">
+                <div class="user-info">
+                    <img id="sidebarUserPicture" src="" alt="プロフィール画像" style="display: none;">
+                    <i class="bi bi-person-circle" id="sidebarUserIcon"></i>
+                    <div>
+                        <div id="sidebarUserName">ゲスト</div>
+                        <small style="opacity: 0.8;" id="sidebarUserDept">-</small>
+                    </div>
+                </div>
+            </a>
+            <button onclick="logout()" class="btn btn-light btn-sm w-100">
+                <i class="bi bi-box-arrow-right"></i> ログアウト
+            </button>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-person-gear"></i> アカウント設定</h2>
+        </div>
+
+        <!-- プロフィール情報 -->
+        <div class="profile-section">
+            <h4 class="mb-4"><i class="bi bi-person-circle"></i> プロフィール情報</h4>
+            
+            <div class="text-center mb-4">
+                <img id="profilePicturePreview" src="" alt="プロフィール画像" class="profile-picture-preview" style="display: none;">
+                <i class="bi bi-person-circle text-primary" id="profilePictureIcon" style="font-size: 150px;"></i>
+                <div class="mt-3">
+                    <p class="text-muted small" id="profilePictureStatus">Google連携でプロフィール画像を表示できます</p>
+                </div>
+            </div>
+
+            <form id="profileForm">
+                <div class="row mb-3">
+                    <label for="userName" class="col-sm-3 col-form-label">名前</label>
+                    <div class="col-sm-9">
+                        <input type="text" class="form-control" id="userName" required>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <label for="userEmail" class="col-sm-3 col-form-label">メールアドレス</label>
+                    <div class="col-sm-9">
+                        <input type="email" class="form-control" id="userEmail" readonly>
+                        <small class="text-muted">メールアドレスは変更できません</small>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <label for="userDepartment" class="col-sm-3 col-form-label">部署</label>
+                    <div class="col-sm-9">
+                        <input type="text" class="form-control" id="userDepartment">
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <label for="userSlackId" class="col-sm-3 col-form-label">Slack User ID</label>
+                    <div class="col-sm-9">
+                        <input type="text" class="form-control" id="userSlackId" readonly>
+                        <small class="text-muted">Slack User IDは変更できません</small>
+                    </div>
+                </div>
+
+                <div class="text-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> 保存
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- パスワード変更 -->
+        <div class="profile-section">
+            <h4 class="mb-4"><i class="bi bi-key"></i> パスワード変更</h4>
+            
+            <form id="passwordForm">
+                <div class="row mb-3">
+                    <label for="currentPassword" class="col-sm-3 col-form-label">現在のパスワード</label>
+                    <div class="col-sm-9">
+                        <input type="password" class="form-control" id="currentPassword" required>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <label for="newPassword" class="col-sm-3 col-form-label">新しいパスワード</label>
+                    <div class="col-sm-9">
+                        <input type="password" class="form-control" id="newPassword" required minlength="8">
+                        <small class="text-muted">8文字以上で入力してください</small>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <label for="confirmPassword" class="col-sm-3 col-form-label">パスワード（確認）</label>
+                    <div class="col-sm-9">
+                        <input type="password" class="form-control" id="confirmPassword" required>
+                    </div>
+                </div>
+
+                <div class="text-end">
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-shield-lock"></i> パスワードを変更
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Google連携 -->
+        <div class="profile-section">
+            <h4 class="mb-4"><i class="bi bi-google"></i> Google連携</h4>
+            
+            <div id="googleConnected" style="display: none;">
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> Googleカレンダーと連携済みです
+                </div>
+                <button class="btn btn-danger" onclick="disconnectGoogle()">
+                    <i class="bi bi-x-circle"></i> 連携を解除
+                </button>
+            </div>
+
+            <div id="googleNotConnected">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Googleカレンダーと連携すると、プロフィール画像が自動的に設定されます
+                </div>
+                <a href="calendar-settings.html" class="btn btn-primary">
+                    <i class="bi bi-link-45deg"></i> カレンダー設定へ
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost'
+            ? `http://localhost:${window.location.port}/api`
+            : 'https://sapot-san-bot-production.up.railway.app/api';
+
+        let currentUser = null;
+
+        // 認証チェック
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userName');
+                    window.location.href = 'login.html';
+                    return false;
+                }
+
+                currentUser = result.data;
+                loadUserProfile();
+                updateSidebar();
+                return true;
+            } catch (error) {
+                console.error('認証エラー:', error);
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userName');
+                window.location.href = 'login.html';
+                return false;
+            }
+        }
+
+        // ユーザープロフィールを読み込む
+        function loadUserProfile() {
+            if (!currentUser) return;
+
+            // フォームに値を設定
+            document.getElementById('userName').value = currentUser.name || '';
+            document.getElementById('userEmail').value = currentUser.email || '';
+            document.getElementById('userDepartment').value = currentUser.department || '';
+            document.getElementById('userSlackId').value = currentUser.slack_user_id || '';
+
+            // プロフィール画像を表示
+            if (currentUser.google_profile_picture) {
+                document.getElementById('profilePicturePreview').src = currentUser.google_profile_picture;
+                document.getElementById('profilePicturePreview').style.display = 'block';
+                document.getElementById('profilePictureIcon').style.display = 'none';
+                document.getElementById('profilePictureStatus').textContent = 'Google連携済み';
+            }
+
+            // Google連携状態を確認
+            checkGoogleConnection();
+        }
+
+        // サイドバーを更新
+        function updateSidebar() {
+            if (!currentUser) return;
+
+            document.getElementById('sidebarUserName').textContent = currentUser.name || 'ゲスト';
+            document.getElementById('sidebarUserDept').textContent = currentUser.department || '部署未設定';
+
+            // プロフィール画像を表示
+            if (currentUser.google_profile_picture) {
+                document.getElementById('sidebarUserPicture').src = currentUser.google_profile_picture;
+                document.getElementById('sidebarUserPicture').style.display = 'block';
+                document.getElementById('sidebarUserIcon').style.display = 'none';
+            }
+        }
+
+        // Google連携状態を確認
+        async function checkGoogleConnection() {
+            try {
+                if (!currentUser) return;
+                
+                const response = await fetch(`${API_URL}/google-calendar/status?slack_user_id=${currentUser.slack_user_id}`);
+                const result = await response.json();
+
+                if (result.success && result.connected) {
+                    document.getElementById('googleConnected').style.display = 'block';
+                    document.getElementById('googleNotConnected').style.display = 'none';
+                } else {
+                    document.getElementById('googleConnected').style.display = 'none';
+                    document.getElementById('googleNotConnected').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Google連携状態の確認エラー:', error);
+            }
+        }
+
+        // プロフィール更新
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const token = localStorage.getItem('authToken');
+            const name = document.getElementById('userName').value;
+            const department = document.getElementById('userDepartment').value;
+
+            try {
+                const response = await fetch(`${API_URL}/account/profile`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, department })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('プロフィールを更新しました！');
+                    currentUser.name = name;
+                    currentUser.department = department;
+                    localStorage.setItem('userName', name);
+                    updateSidebar();
+                } else {
+                    alert('エラー: ' + result.error);
+                }
+            } catch (error) {
+                console.error('プロフィール更新エラー:', error);
+                alert('プロフィールの更新に失敗しました');
+            }
+        });
+
+        // パスワード変更
+        document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                alert('新しいパスワードと確認用パスワードが一致しません');
+                return;
+            }
+
+            const token = localStorage.getItem('authToken');
+
+            try {
+                const response = await fetch(`${API_URL}/account/password`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ currentPassword, newPassword })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('パスワードを変更しました！');
+                    document.getElementById('passwordForm').reset();
+                } else {
+                    alert('エラー: ' + result.error);
+                }
+            } catch (error) {
+                console.error('パスワード変更エラー:', error);
+                alert('パスワードの変更に失敗しました');
+            }
+        });
+
+        // Google連携解除
+        async function disconnectGoogle() {
+            if (!confirm('Googleカレンダー連携を解除しますか？')) return;
+
+            const token = localStorage.getItem('authToken');
+
+            try {
+                const response = await fetch(`${API_URL}/google-calendar/disconnect`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Google連携を解除しました');
+                    checkGoogleConnection();
+                    window.location.reload();
+                } else {
+                    alert('エラー: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Google連携解除エラー:', error);
+                alert('連携解除に失敗しました');
+            }
+        }
+
+        // ログアウト処理
+        async function logout() {
+            if (!confirm('ログアウトしますか？')) return;
+
+            const token = localStorage.getItem('authToken');
+
+            try {
+                await fetch(`${API_URL}/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+            } catch (error) {
+                console.error('ログアウトエラー:', error);
+            }
+
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userName');
+            window.location.href = 'login.html';
+        }
+
+        // 初期化
+        checkAuth();
+    </script>
+</body>
+</html>

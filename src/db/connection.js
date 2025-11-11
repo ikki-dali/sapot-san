@@ -3,13 +3,27 @@ const { createClient } = require('@supabase/supabase-js');
 
 // 環境変数の検証
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ 環境変数エラー:');
-  console.error('  SUPABASE_URL:', supabaseUrl ? '設定済み' : '未設定');
-  console.error('  SUPABASE_ANON_KEY:', supabaseKey ? '設定済み' : '未設定');
-  throw new Error('Supabase環境変数が設定されていません。Vercelの環境変数設定を確認してください。');
+if (!supabaseUrl) {
+  console.error('❌ 環境変数エラー: SUPABASE_URL が未設定です');
+  throw new Error('SUPABASE_URL環境変数が設定されていません。');
+}
+
+if (!supabaseAnonKey && !supabaseServiceKey) {
+  console.error('❌ 環境変数エラー: SUPABASE_ANON_KEY または SUPABASE_SERVICE_ROLE_KEY が必要です');
+  throw new Error('Supabase認証キーが設定されていません。');
+}
+
+// サーバーサイドなのでSERVICE_ROLE_KEYを優先的に使用（RLSをバイパス）
+// SERVICE_ROLE_KEYがない場合はANON_KEYにフォールバック
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+
+if (supabaseServiceKey) {
+  console.log('ℹ️  Supabase接続: SERVICE_ROLE_KEY使用（RLSバイパス）');
+} else {
+  console.log('⚠️  Supabase接続: ANON_KEY使用（RLS有効）');
 }
 
 // Supabaseクライアントの作成
@@ -18,7 +32,8 @@ const supabase = createClient(
   supabaseKey,
   {
     auth: {
-      persistSession: false // サーバーサイドなのでセッション永続化不要
+      persistSession: false, // サーバーサイドなのでセッション永続化不要
+      autoRefreshToken: false // サーバーサイドでは自動リフレッシュ不要
     }
   }
 );

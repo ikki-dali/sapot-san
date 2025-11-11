@@ -6,7 +6,7 @@ const logger = require('../../utils/logger');
  */
 async function register(req, res) {
   try {
-    const { slackUserId, email, name, password } = req.body;
+    const { slackUserId, email, name, password, department } = req.body;
 
     // バリデーション
     if (!slackUserId || !email || !name || !password) {
@@ -39,6 +39,7 @@ async function register(req, res) {
       email,
       name,
       password,
+      department,
     });
 
     res.status(201).json({

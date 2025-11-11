@@ -64,6 +64,7 @@ SLACK_SIGNING_SECRET=your-signing-secret
 # Supabase設定（必須）
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key  # サーバーサイド用（RLSバイパス）
 
 # OpenAI API設定（必須）
 OPENAI_API_KEY=sk-your-openai-key
@@ -72,11 +73,30 @@ OPENAI_MODEL=gpt-4o
 # Notion連携（オプション）
 NOTION_API_KEY=secret_your_notion_integration_token
 NOTION_DATABASE_ID=your_notion_database_id
+
+# Google Calendar OAuth連携（オプション）
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/google-calendar/callback
 ```
+
+#### Supabase Service Role Keyの取得方法
+
+1. Supabaseダッシュボードにアクセス: https://supabase.com/dashboard
+2. プロジェクトを選択
+3. 左メニュー → **Settings** → **API**
+4. **Project API keys** セクションで `service_role` キーをコピー
+5. `.env`の `SUPABASE_SERVICE_ROLE_KEY` に設定
+
+⚠️ **重要**: Service Role Keyは強力な権限を持つため、`.env`ファイルを絶対にGitにコミットしないでください。
 
 ### 3. Notion連携設定（オプション）
 
 詳細は後述の「Notion連携の設定」セクションを参照してください。
+
+### 4. Google Calendar連携設定（オプション）
+
+詳細は後述の「Google Calendar連携の設定（OAuth 2.0）」セクションを参照してください。
 
 ## 💻 起動方法
 
@@ -170,7 +190,9 @@ npm run test:coverage # カバレッジレポート生成
 
 これで設定完了！15分ごとに自動で双方向同期されます。
 
-## 🗓️ Google Calendar連携の設定
+## 🗓️ Google Calendar連携の設定（OAuth 2.0）
+
+マルチユーザー対応のGoogle Calendar OAuth連携です。各ユーザーが自分のGoogleカレンダーにタスクを同期できます。
 
 ### Step 1: Google Cloud Projectを作成
 
@@ -180,53 +202,77 @@ npm run test:coverage # カバレッジレポート生成
 
 ### Step 2: Google Calendar APIを有効化
 
-1. 左メニュー → 「APIとサービス」→「ライブラリ」
+1. 左メニュー → **APIs & Services** → **Library**
 2. 「Google Calendar API」を検索
-3. 「有効にする」をクリック
+3. **有効にする** をクリック
 
-### Step 3: Service Accountを作成
+### Step 3: OAuth同意画面を設定
 
-1. 左メニュー → 「APIとサービス」→「認証情報」
-2. 「認証情報を作成」→「サービスアカウント」を選択
-3. サービスアカウント名を入力（例：「sapot-san-calendar」）
-4. 「作成して続行」をクリック
-5. ロールは不要なのでスキップ → 「完了」
+1. 左メニュー → **APIs & Services** → **OAuth consent screen**
+2. User Type: **Internal**（組織内のみ）または **External**（誰でも）を選択
+3. アプリ情報を入力:
+   - App name: **サポ田さん**
+   - User support email: あなたのメールアドレス
+   - Developer contact information: あなたのメールアドレス
+4. **Save and Continue**
+5. Scopesはスキップ（後で設定）
+6. **Save and Continue**
 
-### Step 4: 認証情報JSONをダウンロード
+### Step 4: OAuth 2.0 クライアントIDを作成
 
-1. 作成したサービスアカウントをクリック
-2. 「キー」タブ → 「鍵を追加」→「新しい鍵を作成」
-3. 「JSON」を選択 → 「作成」
-4. JSONファイルがダウンロードされる
+1. 左メニュー → **APIs & Services** → **Credentials**
+2. **Create Credentials** → **OAuth 2.0 Client ID** を選択
+3. Application type: **Web application**
+4. Name: **サポ田さん Web Client**
+5. **Authorized redirect URIs** に以下を追加:
+   - 開発環境: `http://localhost:3000/api/google-calendar/callback`
+   - 本番環境: `https://your-app.vercel.app/api/google-calendar/callback`
+     （本番URLに応じて変更）
+6. **Create** をクリック
+7. **Client ID** と **Client secret** が表示されるのでコピー
 
 ### Step 5: .envに設定
 
-1. ダウンロードしたJSONファイルの内容を1行にまとめる：
-   ```bash
-   cat downloaded-file.json | jq -c
-   ```
+```env
+GOOGLE_CLIENT_ID=123456789-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/google-calendar/callback
+```
 
-2. `.env`に追加：
-   ```env
-   GOOGLE_CALENDAR_CREDENTIALS={"type":"service_account","project_id":"..."...}
-   GOOGLE_CALENDAR_ID=your-calendar-id@gmail.com
-   ```
+本番環境では `GOOGLE_REDIRECT_URI` を本番URLに変更してください。
 
-   カレンダーIDの確認方法：
-   - Google Calendarを開く
-   - 使用するカレンダーの設定 → 「カレンダーの統合」
-   - 「カレンダーID」をコピー
-   - プライマリカレンダーの場合は自分のGmailアドレス
+### Step 6: google_calendar_tokensテーブルを作成
 
-### Step 6: カレンダーにService Accountを招待
+Supabaseダッシュボードで以下のSQLを実行:
 
-1. Google Calendarを開く
-2. 使用するカレンダーの設定 → 「特定のユーザーとの共有」
-3. Service AccountのメールアドレスCLIENT_EMAIL（JSONファイル内の`client_email`）を追加
-4. 権限を「予定の変更権限」に設定
-5. 「送信」
+```sql
+CREATE TABLE IF NOT EXISTS google_calendar_tokens (
+  id SERIAL PRIMARY KEY,
+  slack_user_id VARCHAR(255) UNIQUE NOT NULL,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  token_expiry TIMESTAMPTZ NOT NULL,
+  calendar_id VARCHAR(255) DEFAULT 'primary',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-これで設定完了！30分ごとに自動で同期されます。
+-- インデックスを作成
+CREATE INDEX IF NOT EXISTS idx_google_calendar_tokens_slack_user_id
+ON google_calendar_tokens(slack_user_id);
+
+-- RLSを無効化（サーバーサイドでSERVICE_ROLE_KEYを使用するため）
+ALTER TABLE google_calendar_tokens DISABLE ROW LEVEL SECURITY;
+```
+
+### Step 7: ユーザーがカレンダー連携を設定
+
+1. Webダッシュボード（http://localhost:3000）にアクセス
+2. **Settings** → **Google Calendar連携** をクリック
+3. Googleアカウントでログインして許可
+4. これでタスクが自動的にGoogleカレンダーに同期されます！
+
+これで設定完了！タスクに期限と担当者が設定されると、自動的にGoogleカレンダーにイベントが作成されます。
 
 ## 📄 ライセンス
 

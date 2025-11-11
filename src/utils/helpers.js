@@ -1,4 +1,35 @@
 const logger = require('./logger');
+const { supabase } = require('../db/connection');
+
+/**
+ * データベースからユーザー名を取得
+ * @param {string} userId - Slack User ID（例: "U09CAH6FZPW"）
+ * @returns {Promise<string|null>} - 登録済みのユーザー名、または null
+ */
+async function getUserNameFromDatabase(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('name')
+      .eq('slack_user_id', userId)
+      .single();
+
+    if (error) {
+      logger.info(`🔍 DB検索: ユーザー ${userId} が見つかりません`);
+      return null;
+    }
+
+    if (data && data.name) {
+      logger.success(`✅ DB検索成功: ${userId} → ${data.name}`);
+      return data.name;
+    }
+
+    return null;
+  } catch (err) {
+    logger.failure(`DB検索エラー (${userId})`, { error: err.message });
+    return null;
+  }
+}
 
 /**
  * メッセージ内のSlackメンションIDをユーザー名に置換
@@ -26,15 +57,23 @@ async function replaceMentionsWithNames(text, client) {
     const mentionTag = match[0]; // <@U12345>
 
     try {
-      // Slack APIでユーザー情報を取得
-      const userInfo = await client.users.info({ user: userId });
+      // まずデータベースから名前を取得
+      let userName = await getUserNameFromDatabase(userId);
 
-      if (userInfo.ok && userInfo.user) {
-        // 実名（real_name）または表示名（display_name）を使用
-        const userName = userInfo.user.profile.real_name ||
-                        userInfo.user.profile.display_name ||
-                        userInfo.user.name;
+      // データベースに見つからない場合は Slack API から取得
+      if (!userName) {
+        logger.info(`🌐 Slack APIからユーザー情報を取得: ${userId}`);
+        const userInfo = await client.users.info({ user: userId });
 
+        if (userInfo.ok && userInfo.user) {
+          // 実名（real_name）または表示名（display_name）を使用
+          userName = userInfo.user.profile.real_name ||
+                            userInfo.user.profile.display_name ||
+                            userInfo.user.name;
+        }
+      }
+
+      if (userName) {
         logger.success(`✅ メンション置換: ${mentionTag} → @${userName}`);
 
         // メンションを @ユーザー名 に置換

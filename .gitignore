@@ -21,3 +21,4 @@ logs/
 set-railway-vars.sh
 *.pem
 *.key
+key

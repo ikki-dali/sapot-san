@@ -11,6 +11,8 @@ const unrepliedRoutes = require('./src/api/routes/unrepliedRoutes');
 const tagRoutes = require('./src/api/routes/tagRoutes');
 const authRoutes = require('./src/api/routes/authRoutes');
 const googleCalendarOAuthRoutes = require('./src/api/routes/googleCalendarOAuthRoutes');
+const userRoutes = require('./src/api/routes/userRoutes');
+const accountRoutes = require('./src/api/routes/accountRoutes');
 
 const app = express();
 const PORT = process.env.PORT || process.env.API_PORT || 3000;
@@ -69,6 +71,8 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/unreplied', unrepliedRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/google-calendar', googleCalendarOAuthRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/account', accountRoutes);
 
 // API情報エンドポイント
 app.get('/api', (req, res) => {
@@ -84,7 +88,8 @@ app.get('/api', (req, res) => {
       calendar: '/api/calendar',
       unreplied: '/api/unreplied',
       tags: '/api/tags',
-      googleCalendarOAuth: '/api/google-calendar'
+      googleCalendarOAuth: '/api/google-calendar',
+      users: '/api/users'
     }
   });
 });

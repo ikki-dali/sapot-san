@@ -116,6 +116,26 @@
                 </div>
 
                 <div class="mb-3">
+                    <label for="department" class="form-label">
+                        <i class="bi bi-building"></i> 所属部署
+                    </label>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="department"
+                        name="department"
+                        placeholder="例: 開発部、営業部、マーケティング部"
+                        list="departmentList"
+                    >
+                    <datalist id="departmentList">
+                        <!-- 既存の部署一覧がここに動的に追加されます -->
+                    </datalist>
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i> 既存の部署が表示されます。新規の部署名も入力できます。
+                    </small>
+                </div>
+
+                <div class="mb-3">
                     <label for="password" class="form-label">
                         <i class="bi bi-lock"></i> パスワード <span class="text-danger">*</span>
                     </label>
@@ -188,6 +208,28 @@
             });
         }
 
+        // 部署一覧を読み込む
+        async function loadDepartments() {
+            try {
+                const response = await fetch(`${API_URL}/users/departments`);
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    const datalist = document.getElementById('departmentList');
+                    result.data.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept;
+                        datalist.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('部署一覧の読み込みエラー:', error);
+            }
+        }
+
+        // ページ読み込み時に部署一覧を取得
+        loadDepartments();
+
         // 登録フォームの送信処理
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -197,6 +239,7 @@
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
+            const department = document.getElementById('department').value.trim();
 
             // パスワード確認
             if (password !== confirmPassword) {
@@ -221,6 +264,7 @@
                         name,
                         email,
                         password,
+                        department: department || null,
                     }),
                 });
 
