@@ -389,6 +389,13 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled, slackClient) {
               .replace(/:green_circle:/g, '')
               .replace(/:large_green_circle:/g, '')
               .trim();
+            
+            // メンション部分（@ユーザー名）を除去
+            // パターン: @ユーザー名 の後にスペースや改行がある場合、その部分を除去
+            displayText = displayText
+              .replace(/@[^\s@]+(\s+|$)/g, '') // @ユーザー名 とその後のスペースを除去
+              .replace(/^\s+/, '') // 先頭のスペースを除去
+              .trim();
           } catch (err) {
             console.error('⚠️ メンション置換エラー:', err.message);
           }
