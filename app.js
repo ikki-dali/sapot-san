@@ -1338,13 +1338,18 @@ app.event('message', async ({ event, client }) => {
           try {
             // タスクを作成（保存されている優先度を使用）
             const taskPriority = mention.priority || 2;  // デフォルトは中
+            
+            // メッセージテキストから期限を抽出
+            const dueDate = extractDueDateFromText(mention.message_text);
+            
             const newTask = await taskService.createTask({
               text: `【返信あり】${mention.message_text}`,
               channel: mention.channel,
               messageTs: mention.message_ts,
               createdBy: 'auto_reply_system',
               assignee: mention.mentioned_user,
-              priority: taskPriority
+              priority: taskPriority,
+              dueDate: dueDate  // 抽出した期限を設定
             });
 
             // 未返信記録を更新（replied_at と task_id）

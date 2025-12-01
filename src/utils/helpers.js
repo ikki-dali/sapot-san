@@ -182,18 +182,48 @@ function extractDueDateFromText(text) {
 
   const now = new Date();
   const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
 
-  // パターン1: "11/18" または "2024/11/18"
-  const slashDateMatch = text.match(/(\d{4}\/)?(\d{1,2})\/(\d{1,2})/);
-  if (slashDateMatch) {
-    const year = slashDateMatch[1] ? parseInt(slashDateMatch[1].replace('/', '')) : currentYear;
-    const month = parseInt(slashDateMatch[2]);
-    const day = parseInt(slashDateMatch[3]);
-    
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      const dueDate = new Date(year, month - 1, day, 23, 59, 59);
-      logger.info(`📅 日付を検出: ${slashDateMatch[0]} → ${dueDate.toLocaleString('ja-JP')}`);
-      return dueDate;
+  // パターン1: "11/18" または "2024/11/18" または "11/13"（テキストの最後にある場合も検出）
+  // より柔軟なパターンマッチング: 数字/数字の形式を検出
+  const slashDatePatterns = [
+    /(\d{4})\/(\d{1,2})\/(\d{1,2})/,  // 2024/11/18
+    /(\d{1,2})\/(\d{1,2})(?:\s|$|@|\)|）|[\s\S]*$)/  // 11/18 または 11/18@ または 11/18) など
+  ];
+
+  for (const pattern of slashDatePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      let year, month, day;
+      
+      if (match[1] && match[1].length === 4) {
+        // 2024/11/18 形式
+        year = parseInt(match[1]);
+        month = parseInt(match[2]);
+        day = parseInt(match[3]);
+      } else if (match[1] && match[2]) {
+        // 11/18 形式
+        month = parseInt(match[1]);
+        day = parseInt(match[2]);
+        
+        // まず今年の日付として試す
+        year = currentYear;
+        let testDate = new Date(year, month - 1, day, 23, 59, 59);
+        
+        // 過去の日付の場合は来年と判定（例: 現在が12月で11/18の場合は来年の11/18）
+        if (testDate < now) {
+          // 過去の日付なので来年と判定
+          year = currentYear + 1;
+          testDate = new Date(year, month - 1, day, 23, 59, 59);
+        }
+        
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          logger.info(`📅 日付を検出: ${match[0]} → ${testDate.toLocaleString('ja-JP')}`);
+          return testDate;
+        }
+      } else {
+        continue;
+      }
     }
   }
 
