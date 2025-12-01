@@ -373,33 +373,19 @@ async function analyzeMentionAndRecord(messageData, isAIEnabled, slackClient) {
 
       // メンションを記録（AI判定でタスクと判定された場合、またはAI無効の場合）
       if (shouldRecord) {
-        // メンション置換したテキストを取得
+        // メンションIDを既に除去したテキストを使用（メンション名は含めない）
+        // textWithoutPriorityEmojiは既にメンションIDが除去されているので、そのまま使用
         let displayText = textWithoutPriorityEmoji;
-        if (slackClient) {
-          try {
-            displayText = await replaceMentionsWithNames(line, slackClient);
-            // 優先度絵文字も除去
-            displayText = displayText
-              .replace(/🔴/g, '')
-              .replace(/:red_circle:/g, '')
-              .replace(/🟡/g, '')
-              .replace(/:yellow_circle:/g, '')
-              .replace(/:large_yellow_circle:/g, '')
-              .replace(/🟢/g, '')
-              .replace(/:green_circle:/g, '')
-              .replace(/:large_green_circle:/g, '')
-              .trim();
-            
-            // メンション部分（@ユーザー名）を除去
-            // パターン: @ユーザー名 の後にスペースや改行がある場合、その部分を除去
-            displayText = displayText
-              .replace(/@[^\s@]+(\s+|$)/g, '') // @ユーザー名 とその後のスペースを除去
-              .replace(/^\s+/, '') // 先頭のスペースを除去
-              .trim();
-          } catch (err) {
-            console.error('⚠️ メンション置換エラー:', err.message);
-          }
-        }
+        
+        // 念のため、メンション名（@ユーザー名）が含まれている場合は除去
+        // パターン: @で始まり、スペースや行末まで続く文字列を除去
+        displayText = displayText
+          .replace(/@[^\s@]+(\s+|$)/g, '') // @ユーザー名 とその後のスペースを除去
+          .replace(/@[^\s@]+/g, '') // 残っている@ユーザー名も除去
+          .replace(/^\s+/, '') // 先頭のスペースを除去
+          .trim();
+        
+        console.log(`📝 タスクテキスト（メンション除去後）: "${displayText}"`);
 
         // この行でメンションされた各ユーザーに対して記録
         for (const mentionedUser of lineMentions) {

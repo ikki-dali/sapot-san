@@ -252,7 +252,7 @@ app.command('/task-list', async ({ command, ack, client }) => {
 
       // 期限がある場合は表示
       if (task.due_date) {
-        const dueDate = new Date(task.due_date).toLocaleDateString('ja-JP', {
+        const dueDate = new Date(task.due_date).toLocaleString('ja-JP', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
@@ -260,7 +260,7 @@ app.command('/task-list', async ({ command, ack, client }) => {
           minute: '2-digit',
           timeZone: 'Asia/Tokyo'
         });
-        taskText += `\n期限: ${dueDate}`;
+        taskText += `\n📅 期限: ${dueDate}`;
       }
 
       // 要約がある場合は表示
@@ -317,33 +317,47 @@ app.command('/task-list', async ({ command, ack, client }) => {
 });
 
 // ===============================
-// 2-2. 自分のタスクを表示するコマンド
+// 2-2. 自分のタスクを表示するコマンド（依頼された・依頼した両方）
 // ===============================
 app.command('/my-task', async ({ command, ack, client }) => {
   await ack();
 
   try {
-    // 現在のユーザーが担当しているタスクのみを取得
-    const userTasks = await taskService.getTasks({
+    // 自分が担当しているタスク（依頼されたタスク）
+    const assignedTasks = await taskService.getTasks({
       status: 'open',
       assignee: command.user_id
     });
 
-    if (userTasks.length === 0) {
+    // 自分が作成したタスク（依頼したタスク）
+    const createdTasks = await taskService.getTasks({
+      status: 'open',
+      createdBy: command.user_id
+    });
+
+    // 重複を除去（自分が自分に依頼したタスクを除く）
+    const filteredCreatedTasks = createdTasks.filter(
+      task => task.assignee !== command.user_id
+    );
+
+    if (assignedTasks.length === 0 && filteredCreatedTasks.length === 0) {
       await client.chat.postEphemeral({
         channel: command.channel_id,
         user: command.user_id,
-        text: 'あなたが担当している未完了のタスクはありません！'
+        text: 'あなたに関連する未完了のタスクはありません！'
       });
       return;
     }
 
     // 優先度順にソート（1=高, 2=中, 3=低）
-    const sortedTasks = userTasks.sort((a, b) => {
+    const sortTasks = (tasks) => tasks.sort((a, b) => {
       const priorityA = a.priority || 2;
       const priorityB = b.priority || 2;
       return priorityA - priorityB;
     });
+
+    const sortedAssignedTasks = sortTasks(assignedTasks);
+    const sortedCreatedTasks = sortTasks(filteredCreatedTasks);
 
     // Block Kitでタスクリストを作成
     const blocks = [
@@ -359,66 +373,143 @@ app.command('/my-task', async ({ command, ack, client }) => {
       }
     ];
 
-    sortedTasks.forEach(task => {
-      const createdDate = new Date(task.created_at).toLocaleDateString('ja-JP');
-      const taskPriority = task.priority || 2;
-
-      let taskText = `${getPriorityEmoji(taskPriority)} *${task.text}*\n`;
-      taskText += `作成日: ${createdDate} | 優先度: ${getPriorityLabel(taskPriority)}`;
-
-      // 期限がある場合は表示
-      if (task.due_date) {
-        const dueDate = new Date(task.due_date).toLocaleDateString('ja-JP', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'Asia/Tokyo'
-        });
-        taskText += `\n期限: ${dueDate}`;
-      }
-
-      // 要約がある場合は表示
-      if (task.summary) {
-        const truncatedSummary = task.summary.length > 100
-          ? task.summary.substring(0, 100) + '...'
-          : task.summary;
-        taskText += `\n\n_📝 要約: ${truncatedSummary}_`;
-      }
-
+    // ========================================
+    // セクション1: 依頼されたタスク
+    // ========================================
+    if (sortedAssignedTasks.length > 0) {
       blocks.push({
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: taskText
-        },
-        accessory: {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: '✅ 完了'
-          },
-          style: 'primary',
-          action_id: `complete_task_${task.task_id}`,
-          value: task.task_id
+          text: `*🔵 依頼されたタスク (${sortedAssignedTasks.length}件)*`
         }
       });
 
-      blocks.push({
-        type: 'context',
-        elements: [
-          {
+      sortedAssignedTasks.forEach(task => {
+        const createdDate = new Date(task.created_at).toLocaleDateString('ja-JP');
+        const taskPriority = task.priority || 2;
+
+        let taskText = `${getPriorityEmoji(taskPriority)} *${task.text}*\n`;
+        taskText += `作成日: ${createdDate} | 優先度: ${getPriorityLabel(taskPriority)}`;
+
+        // 期限がある場合は表示
+        if (task.due_date) {
+          const dueDate = new Date(task.due_date).toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Tokyo'
+          });
+          taskText += `\n📅 期限: ${dueDate}`;
+        }
+
+        // 要約がある場合は表示
+        if (task.summary) {
+          const truncatedSummary = task.summary.length > 100
+            ? task.summary.substring(0, 100) + '...'
+            : task.summary;
+          taskText += `\n\n_📝 要約: ${truncatedSummary}_`;
+        }
+
+        blocks.push({
+          type: 'section',
+          text: {
             type: 'mrkdwn',
-            text: `タスクID: \`${task.task_id}\``
+            text: taskText
+          },
+          accessory: {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: '✅ 完了'
+            },
+            style: 'primary',
+            action_id: `complete_task_${task.task_id}`,
+            value: task.task_id
           }
-        ]
+        });
+
+        blocks.push({
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: `タスクID: \`${task.task_id}\``
+            }
+          ]
+        });
+
+        blocks.push({
+          type: 'divider'
+        });
+      });
+    }
+
+    // ========================================
+    // セクション2: 依頼したタスク
+    // ========================================
+    if (sortedCreatedTasks.length > 0) {
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*🟠 依頼したタスク (${sortedCreatedTasks.length}件)*`
+        }
       });
 
-      blocks.push({
-        type: 'divider'
+      sortedCreatedTasks.forEach(task => {
+        const createdDate = new Date(task.created_at).toLocaleDateString('ja-JP');
+        const taskPriority = task.priority || 2;
+
+        let taskText = `${getPriorityEmoji(taskPriority)} *${task.text}*\n`;
+        taskText += `担当: <@${task.assignee}> | 作成日: ${createdDate} | 優先度: ${getPriorityLabel(taskPriority)}`;
+
+        // 期限がある場合は表示
+        if (task.due_date) {
+          const dueDate = new Date(task.due_date).toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Tokyo'
+          });
+          taskText += `\n📅 期限: ${dueDate}`;
+        }
+
+        // 要約がある場合は表示
+        if (task.summary) {
+          const truncatedSummary = task.summary.length > 100
+            ? task.summary.substring(0, 100) + '...'
+            : task.summary;
+          taskText += `\n\n_📝 要約: ${truncatedSummary}_`;
+        }
+
+        blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: taskText
+          }
+        });
+
+        blocks.push({
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: `タスクID: \`${task.task_id}\``
+            }
+          ]
+        });
+
+        blocks.push({
+          type: 'divider'
+        });
       });
-    });
+    }
 
     await client.chat.postEphemeral({
       channel: command.channel_id,

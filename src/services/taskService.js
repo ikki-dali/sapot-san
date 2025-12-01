@@ -88,6 +88,7 @@ async function getTaskById(taskId) {
  * タスク一覧を取得
  * @param {Object} [filters] - フィルター条件
  * @param {string} [filters.assignee] - 担当者で絞り込み
+ * @param {string} [filters.createdBy] - 作成者で絞り込み
  * @param {string} [filters.channel] - チャンネルで絞り込み
  * @param {string} [filters.status='open'] - ステータスで絞り込み
  * @returns {Promise<Array>} タスク配列
@@ -108,6 +109,10 @@ async function getTasks(filters = {}) {
 
     if (filters.assignee) {
       query = query.eq('assignee', filters.assignee);
+    }
+
+    if (filters.createdBy) {
+      query = query.eq('created_by', filters.createdBy);
     }
 
     if (filters.channel) {
