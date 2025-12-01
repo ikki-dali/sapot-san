@@ -959,9 +959,26 @@
             }, 300);
         }
 
+        // モバイルフッターナビゲーションのアクティブ状態を設定
+        function setMobileNavActive() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const mobileNavLinks = document.querySelectorAll('.mobile-footer-nav a');
+            mobileNavLinks.forEach(link => {
+                const linkPage = link.getAttribute('href');
+                if (linkPage === currentPage) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        }
+
         // ページ読み込み時に認証チェック
         checkAuth().then(async isAuthenticated => {
             if (!isAuthenticated) return;
+
+            // モバイルナビゲーションのアクティブ状態を設定
+            setMobileNavActive();
 
             // 認証済みの場合のみデータを読み込む
             try {

@@ -564,8 +564,23 @@
             window.location.href = 'login.html';
         }
 
+        // モバイルフッターナビゲーションのアクティブ状態を設定
+        function setMobileNavActive() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const mobileNavLinks = document.querySelectorAll('.mobile-footer-nav a');
+            mobileNavLinks.forEach(link => {
+                const linkPage = link.getAttribute('href');
+                if (linkPage === currentPage) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        }
+
         // 初期化
         checkAuth();
+        setMobileNavActive();
     </script>
 
     <!-- モバイルフッターナビゲーション -->
